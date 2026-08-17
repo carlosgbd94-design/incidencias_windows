@@ -30,6 +30,7 @@ import subprocess
 import threading
 import urllib.request
 
+from app import diag
 from app.database import get_data_dir
 from app.version import APP_VERSION
 
@@ -111,33 +112,44 @@ def _sha256_de(ruta) -> str:
 
 
 def _revisar_y_preparar(al_terminar=None) -> None:
+    diag.log(f"updater: revisando actualizaciones (versión local instalada: {APP_VERSION})")
     try:
         release = _pedir_json(API_LATEST)
         version_remota = release.get("tag_name", "")
+        diag.log(f"updater: GitHub respondió, última versión publicada = {version_remota!r}")
         if _version_a_tupla(version_remota) <= _version_a_tupla(APP_VERSION):
+            diag.log("updater: ya está al día, no hay nada más nuevo -> no hace nada")
             return
 
         assets = {a["name"]: a["browser_download_url"] for a in release.get("assets", [])}
         exe_nombre = next((n for n in assets if n.lower().endswith("_setup.exe")), None)
         sha_nombre = next((n for n in assets if n.lower().endswith(".sha256")), None)
+        diag.log(f"updater: assets del release = {list(assets.keys())} "
+                  f"(exe encontrado: {exe_nombre!r}, sha encontrado: {sha_nombre!r})")
         if not exe_nombre or not sha_nombre:
-            return  # release sin los assets esperados: no arriesgar instalar sin verificar
+            diag.log("updater: faltan assets esperados en el release -> aborta, no arriesga instalar sin verificar")
+            return
 
         carpeta = get_data_dir() / "actualizaciones"
         carpeta.mkdir(parents=True, exist_ok=True)
         ruta_exe = carpeta / exe_nombre
         ruta_sha = carpeta / sha_nombre
 
+        diag.log(f"updater: descargando {sha_nombre}...")
         _descargar(assets[sha_nombre], ruta_sha)
+        diag.log(f"updater: descargando {exe_nombre}...")
         _descargar(assets[exe_nombre], ruta_exe)
+        diag.log("updater: descarga completa, verificando checksum...")
 
         esperado = ruta_sha.read_text(encoding="utf-8").strip().split()[0].lower()
         real = _sha256_de(ruta_exe)
         if real != esperado:
+            diag.log(f"updater: CHECKSUM NO COINCIDE (esperado={esperado}, real={real}) -> descarta la descarga, no instala nada")
             ruta_exe.unlink(missing_ok=True)
             ruta_sha.unlink(missing_ok=True)
             return  # descarga corrupta o manipulada: NUNCA instalar esto
 
+        diag.log(f"updater: checksum OK. Actualización {version_remota} lista para instalarse al cerrar la app")
         _instalador_listo["ruta"] = str(ruta_exe)
         _instalador_listo["version"] = version_remota
         _guardar_marca(str(ruta_exe), version_remota)
@@ -146,7 +158,8 @@ def _revisar_y_preparar(al_terminar=None) -> None:
                 al_terminar(version_remota)
             except Exception:
                 pass
-    except Exception:
+    except Exception as e:
+        diag.log(f"updater: FALLÓ la revisión ({type(e).__name__}: {e}) -> se ignora, se reintentará la próxima apertura")
         return
 
 
@@ -183,7 +196,9 @@ def instalar_al_cerrar() -> None:
     """
     ruta = _instalador_listo["ruta"]
     if not ruta:
+        diag.log("updater: instalar_al_cerrar() llamado pero no hay nada listo -> no hace nada")
         return
+    diag.log(f"updater: lanzando instalador silencioso al cerrar ({ruta})")
     _lanzar_instalador_silencioso(ruta)
 
 
@@ -200,6 +215,9 @@ def reparar_si_quedo_pendiente() -> bool:
     """
     datos = _leer_y_borrar_marca()
     if not datos:
+        diag.log("updater: reparar_si_quedo_pendiente() -> no había ninguna marca pendiente de una sesión anterior")
         return False
+    diag.log(f"updater: había una actualización verificada de una sesión anterior ({datos.get('version')}) "
+              f"que nunca se pudo aplicar -> se lanza ahora, antes de abrir la ventana")
     _lanzar_instalador_silencioso(datos["ruta"])
     return True

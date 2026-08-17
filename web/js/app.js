@@ -38,7 +38,7 @@
         return;
       }
       intentos += 1;
-      if (intentos < 50) setTimeout(intentar, 100); // ~5s máx, luego desiste en silencio
+      if (intentos < 300) setTimeout(intentar, 100); // ~30s máx (el puente puede tardar 8-9s en máquinas lentas), luego desiste en silencio
     };
     intentar();
   })();
