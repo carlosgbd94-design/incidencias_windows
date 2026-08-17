@@ -11,13 +11,24 @@ import datetime
 
 from app.database import get_data_dir
 
+MAX_BYTES = 300_000  # recorta el log si crece demasiado, en vez de borrarlo
+
 
 def reiniciar() -> None:
-    """Trunca el log al inicio de cada sesión, para que siempre refleje solo
-    el arranque más reciente (más fácil de mandar/leer que un historial que
-    crece para siempre)."""
+    """Marca el inicio de una nueva sesión con un separador, SIN borrar
+    sesiones anteriores -- el cuelgue que se está diagnosticando es
+    intermitente, así que si el usuario mata una sesión colgada y vuelve a
+    abrir la app, la corrida colgada debe seguir en el archivo, no perderse
+    al pisarla con la siguiente. Si el archivo crece demasiado, se recorta
+    por el principio (se conserva lo más reciente)."""
     try:
-        (get_data_dir() / "startup.log").write_text("", encoding="utf-8")
+        ruta = get_data_dir() / "startup.log"
+        if ruta.exists() and ruta.stat().st_size > MAX_BYTES:
+            contenido = ruta.read_text(encoding="utf-8", errors="ignore")
+            ruta.write_text(contenido[-MAX_BYTES:], encoding="utf-8")
+        marca = datetime.datetime.now().isoformat(timespec="seconds")
+        with open(ruta, "a", encoding="utf-8") as f:
+            f.write(f"\n===== NUEVA SESIÓN: {marca} =====\n")
     except Exception:
         pass
 
