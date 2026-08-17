@@ -2,11 +2,14 @@
 Lanza la interfaz (HTML/CSS con vidrio esmerilado real) en una ventana nativa
 vía pywebview, con el backend de Python expuesto como API a JavaScript.
 """
+import json
+
 import webview
 
 from app.api import Api
 from app.database import get_data_dir
 from app.paths import assets_dir
+from app import updater
 
 
 def main():
@@ -22,6 +25,21 @@ def main():
         background_color="#EDF1FB",
     )
     api.window = ventana
+
+    def _avisar_actualizacion_lista(version):
+        mensaje = f"Nueva versión {version} descargada. Se instalará sola al cerrar la app."
+        try:
+            ventana.evaluate_js(f"window.Api && Api.mostrarToast({json.dumps(mensaje)}, 'success')")
+        except Exception:
+            pass  # la ventana pudo haberse cerrado ya; no es crítico
+
+    # Revisa GitHub Releases en un hilo aparte (nunca bloquea el arranque) y,
+    # si hay versión nueva, la descarga+verifica en silencio. La instalación
+    # real solo ocurre al cerrar la ventana (ver events.closing abajo), nunca
+    # a media sesión.
+    updater.iniciar_revision_en_segundo_plano(al_terminar=_avisar_actualizacion_lista)
+    ventana.events.closing += updater.instalar_al_cerrar
+
     icono = assets_dir() / "icon.ico"
     # private_mode=False: reutiliza el perfil de WebView2 entre ejecuciones
     # (con private_mode=True, Windows tenía que crear un entorno WebView2
