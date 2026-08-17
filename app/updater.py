@@ -9,9 +9,23 @@ cero clics para el usuario, pero nunca interrumpe una sesión activa).
 Cualquier fallo (sin internet, GitHub inalcanzable, límite de tasa, JSON
 inesperado, checksum que no coincide, etc.) se ignora silenciosamente: la app
 debe seguir funcionando exactamente igual que si este módulo no existiera.
+
+IMPORTANTE - resiliencia ante cuelgues: si la ventana se queda "no responde"
+(ej. por un problema de WebView2 en esa máquina en particular), el usuario
+solo puede matar el proceso desde el Administrador de tareas -> el evento
+"closing" de pywebview NUNCA se dispara en ese caso, así que instalar_al_cerrar()
+nunca se llegaría a ejecutar y esa máquina quedaría atascada para siempre en
+la versión rota, aunque ya exista una corregida. Por eso el estado "ya
+verificado, listo para instalar" también se persiste en disco (no solo en
+memoria): al iniciar, ANTES de crear la ventana, se revisa si ya había un
+instalador verificado de una sesión anterior y, si lo hay, se lanza de una
+vez -- así una máquina que se quedó colgada se autorepara la próxima vez que
+alguien vuelva a abrir la app, sin depender de que el cierre haya sido
+"limpio".
 """
 import hashlib
 import json
+import os
 import subprocess
 import threading
 import urllib.request
@@ -25,6 +39,34 @@ TIMEOUT_JSON = 6
 TIMEOUT_DESCARGA = 60
 
 _instalador_listo = {"ruta": None, "version": None}
+
+
+def _archivo_marca():
+    return get_data_dir() / "actualizaciones" / "listo.json"
+
+
+def _guardar_marca(ruta_exe: str, version: str) -> None:
+    try:
+        _archivo_marca().write_text(
+            json.dumps({"ruta": ruta_exe, "version": version}), encoding="utf-8"
+        )
+    except Exception:
+        pass
+
+
+def _leer_y_borrar_marca():
+    marca = _archivo_marca()
+    try:
+        if not marca.exists():
+            return None
+        datos = json.loads(marca.read_text(encoding="utf-8"))
+        marca.unlink(missing_ok=True)
+        ruta = datos.get("ruta")
+        if ruta and os.path.exists(ruta):
+            return datos
+        return None
+    except Exception:
+        return None
 
 
 def _version_a_tupla(v: str) -> tuple:
@@ -98,6 +140,7 @@ def _revisar_y_preparar(al_terminar=None) -> None:
 
         _instalador_listo["ruta"] = str(ruta_exe)
         _instalador_listo["version"] = version_remota
+        _guardar_marca(str(ruta_exe), version_remota)
         if al_terminar:
             try:
                 al_terminar(version_remota)
@@ -122,14 +165,7 @@ def hay_actualizacion_lista() -> dict | None:
     return None
 
 
-def instalar_al_cerrar() -> None:
-    """Lanza el instalador ya verificado en silencio y sin esperar a que
-    termine (la app está a punto de cerrarse). Solo debe llamarse desde el
-    handler del evento de cierre de la ventana, nunca durante el uso normal.
-    """
-    ruta = _instalador_listo["ruta"]
-    if not ruta:
-        return
+def _lanzar_instalador_silencioso(ruta: str) -> None:
     try:
         subprocess.Popen(
             [ruta, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
@@ -138,3 +174,32 @@ def instalar_al_cerrar() -> None:
         )
     except Exception:
         pass
+
+
+def instalar_al_cerrar() -> None:
+    """Lanza el instalador ya verificado en silencio y sin esperar a que
+    termine (la app está a punto de cerrarse). Solo debe llamarse desde el
+    handler del evento de cierre de la ventana, nunca durante el uso normal.
+    """
+    ruta = _instalador_listo["ruta"]
+    if not ruta:
+        return
+    _lanzar_instalador_silencioso(ruta)
+
+
+def reparar_si_quedo_pendiente() -> bool:
+    """Debe llamarse UNA vez, al inicio de main(), antes de crear la ventana.
+
+    Si una sesión anterior dejó un instalador ya verificado pero nunca se
+    pudo aplicar (p.ej. la ventana se quedó "no responde" y el usuario tuvo
+    que matar el proceso desde el Administrador de tareas, así que el evento
+    de cierre nunca se disparó), lo lanza de inmediato. Devuelve True si se
+    lanzó algo -- el llamador puede decidir seguir abriendo la ventana igual
+    (el instalador se encarga de cerrarla cuando esté listo para reemplazar
+    los archivos).
+    """
+    datos = _leer_y_borrar_marca()
+    if not datos:
+        return False
+    _lanzar_instalador_silencioso(datos["ruta"])
+    return True

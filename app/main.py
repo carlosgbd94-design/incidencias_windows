@@ -13,6 +13,14 @@ from app import updater
 
 
 def main():
+    # Autoreparación: si una sesión anterior dejó un instalador ya verificado
+    # sin poder aplicarse (ej. la ventana se quedó "no responde" y alguien
+    # tuvo que matar el proceso desde el Administrador de tareas, por lo que
+    # el cierre nunca fue "limpio"), se lanza aquí, ANTES de crear la ventana
+    # -- así una máquina atascada se autorepara sola la siguiente vez que se
+    # abre la app, sin depender de un cierre exitoso.
+    updater.reparar_si_quedo_pendiente()
+
     api = Api()
     web_dir = assets_dir().parent / "web"
     ventana = webview.create_window(
@@ -33,11 +41,14 @@ def main():
         except Exception:
             pass  # la ventana pudo haberse cerrado ya; no es crítico
 
-    # Revisa GitHub Releases en un hilo aparte (nunca bloquea el arranque) y,
-    # si hay versión nueva, la descarga+verifica en silencio. La instalación
-    # real solo ocurre al cerrar la ventana (ver events.closing abajo), nunca
-    # a media sesión.
-    updater.iniciar_revision_en_segundo_plano(al_terminar=_avisar_actualizacion_lista)
+    def _iniciar_revision_diferida():
+        # Se dispara solo hasta que la ventana ya está mostrada y respondiendo
+        # (evento "shown"), no al arrancar -- así la revisión de red queda
+        # totalmente desacoplada de la ruta crítica de apertura, incluso como
+        # posibilidad remota de que contribuyera a un cuelgue.
+        updater.iniciar_revision_en_segundo_plano(al_terminar=_avisar_actualizacion_lista)
+
+    ventana.events.shown += _iniciar_revision_diferida
     ventana.events.closing += updater.instalar_al_cerrar
 
     icono = assets_dir() / "icon.ico"
