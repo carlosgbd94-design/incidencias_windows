@@ -3,25 +3,36 @@ Lanza la interfaz (HTML/CSS con vidrio esmerilado real) en una ventana nativa
 vía pywebview, con el backend de Python expuesto como API a JavaScript.
 """
 import json
+import threading
 
 import webview
 
 from app.api import Api
 from app.database import get_data_dir
 from app.paths import assets_dir
-from app import updater
+from app import diag, updater
 
 
 def main():
+    # Bitácora de arranque: como el cuelgue reportado no se puede reproducir
+    # en el entorno de desarrollo (sin sesión de escritorio real), este log
+    # queda en %LOCALAPPDATA%\ControlPasesSESEQ\startup.log en la máquina
+    # real y muestra hasta qué paso se llegó la última vez que se abrió la
+    # app -- así ya no hay que adivinar dónde se atora.
+    diag.reiniciar()
+    diag.log("main() inicio")
+
     # Autoreparación: si una sesión anterior dejó un instalador ya verificado
     # sin poder aplicarse (ej. la ventana se quedó "no responde" y alguien
     # tuvo que matar el proceso desde el Administrador de tareas, por lo que
     # el cierre nunca fue "limpio"), se lanza aquí, ANTES de crear la ventana
     # -- así una máquina atascada se autorepara sola la siguiente vez que se
     # abre la app, sin depender de un cierre exitoso.
-    updater.reparar_si_quedo_pendiente()
+    hubo_reparacion = updater.reparar_si_quedo_pendiente()
+    diag.log(f"reparar_si_quedo_pendiente() -> {hubo_reparacion}")
 
     api = Api()
+    diag.log("Api() creada (conexión SQLite abierta)")
     web_dir = assets_dir().parent / "web"
     ventana = webview.create_window(
         "Control de Pases e Incidencias - SESEQ",
@@ -33,6 +44,7 @@ def main():
         background_color="#EDF1FB",
     )
     api.window = ventana
+    diag.log("create_window() devolvió (aún no se muestra ni se carga nada)")
 
     def _avisar_actualizacion_lista(version):
         mensaje = f"Nueva versión {version} descargada. Se instalará sola al cerrar la app."
@@ -48,7 +60,30 @@ def main():
         # posibilidad remota de que contribuyera a un cuelgue.
         updater.iniciar_revision_en_segundo_plano(al_terminar=_avisar_actualizacion_lista)
 
+    def _revisar_puente_js():
+        # Se corre unos segundos después de "loaded", para distinguir si lo
+        # que se atora es cargar la página (evento "loaded" nunca llega) o
+        # específicamente el puente window.pywebview.api.* hacia Python
+        # (la página carga bien, pero perfil_obtener nunca queda enlazado).
+        try:
+            resultado = ventana.evaluate_js(
+                "JSON.stringify({"
+                "  tiene_pywebview: !!(window.pywebview),"
+                "  tiene_api: !!(window.pywebview && window.pywebview.api),"
+                "  tiene_perfil_obtener: !!(window.pywebview && window.pywebview.api "
+                "    && window.pywebview.api.perfil_obtener),"
+                "})"
+            )
+            diag.log(f"chequeo del puente JS (a los ~4s de loaded): {resultado}")
+        except Exception as e:
+            diag.log(f"chequeo del puente JS FALLÓ (evaluate_js lanzó excepción): {e!r}")
+
+    ventana.events.before_show += lambda: diag.log("evento before_show")
+    ventana.events.shown += lambda: diag.log("evento shown (ventana nativa visible en pantalla)")
+    ventana.events.loaded += lambda: diag.log("evento loaded (HTML/CSS/JS ya cargados en WebView2)")
+    ventana.events.loaded += lambda: threading.Timer(4.0, _revisar_puente_js).start()
     ventana.events.shown += _iniciar_revision_diferida
+    ventana.events.closing += lambda: diag.log("evento closing")
     ventana.events.closing += updater.instalar_al_cerrar
 
     icono = assets_dir() / "icon.ico"
@@ -64,11 +99,13 @@ def main():
     # la creación del entorno WebView2 ("no responde"). %LOCALAPPDATA% (donde
     # ya vive la base de datos, ver app/database.py) nunca se itinera, así
     # que forzamos ahí el perfil para garantizar disco local.
+    diag.log("a punto de llamar webview.start()")
     webview.start(
         icon=str(icono) if icono.exists() else None,
         private_mode=False,
         storage_path=str(get_data_dir() / "webview2_cache"),
     )
+    diag.log("webview.start() retornó (la ventana ya se cerró)")
 
 
 if __name__ == "__main__":

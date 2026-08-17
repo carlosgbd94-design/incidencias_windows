@@ -14,6 +14,7 @@ from app.business_rules import (
 )
 from app.database import get_connection, init_db, obtener_perfil
 from app.holidays import asegurar_festivos_para, obtener_festivos
+from app.version import APP_VERSION
 # app.pdf_export importa reportlab (~0.25s de arranque medidos en frío) para
 # dibujar los PDF; se importa perezosamente dentro de exportar_pases()/
 # exportar_vacaciones() en vez de aquí arriba, para que ese costo no se pague
@@ -35,6 +36,10 @@ class Api:
         self.window = None
         self.conn = get_connection()
         init_db(self.conn)
+
+    # ---------------- Meta ----------------
+    def version_actual(self):
+        return _ok(APP_VERSION)
 
     # ---------------- Perfil ----------------
     def perfil_obtener(self):
