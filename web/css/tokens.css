@@ -1,0 +1,125 @@
+@font-face {
+  font-family: "Inter";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("../fonts/Inter-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("../fonts/Inter-Medium.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url("../fonts/Inter-SemiBold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("../fonts/Inter-Bold.woff2") format("woff2");
+}
+
+:root {
+  /* Inter viene empaquetado localmente (sin conexión) y es geométricamente
+     muy cercano a SF Pro; -apple-system/SF Pro quedan como fallback nativo
+     por si algún día se corre en macOS. */
+  --font-sistema: "Inter", -apple-system, "SF Pro Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+
+  /* Un solo acento, como iOS/macOS — nada de arcoíris ni gradientes por todos lados. */
+  --accent-1: #007AFF;
+  --accent-1-active: #0062CC;
+
+  --danger: #FF3B30;
+  --danger-active: #D70015;
+  --success: #34C759;
+  --warning: #FF9500;
+
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --radius-pill: 999px;
+
+  --blur-panel: 20px;
+  --blur-strong: 30px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --ease-spring: cubic-bezier(.32, .72, 0, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+
+  color-scheme: light;
+  --bg-0: #EEEEF3;
+  --bg-1: #F7F7FA;
+  --text-primary: #1C1C1E;
+  --text-secondary: #6E6E73;
+  --text-on-accent: #FFFFFF;
+
+  --glass-bg: rgba(255, 255, 255, 0.62);
+  --glass-bg-strong: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 1px 1px rgba(0,0,0,.02), 0 8px 24px rgba(30, 30, 40, 0.08);
+  --glass-highlight: rgba(255, 255, 255, 0.95);
+
+  --sidebar-bg: rgba(246, 246, 249, 0.72);
+  --input-bg: rgba(120, 120, 128, 0.08);
+  --input-border: rgba(60, 60, 67, 0.16);
+  --input-border-focus: var(--accent-1);
+  --row-hover: rgba(120, 120, 128, 0.08);
+  --divider: rgba(60, 60, 67, 0.12);
+  --track-bg: rgba(120, 120, 128, 0.16);
+  --thumb-bg: #FFFFFF;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg-0: #000000;
+    --bg-1: #0B0B0D;
+    --text-primary: #F2F2F7;
+    --text-secondary: #98989F;
+    --text-on-accent: #FFFFFF;
+
+    --accent-1: #0A84FF;
+    --accent-1-active: #409CFF;
+
+    --blur-panel: 26px;
+    --blur-strong: 36px;
+
+    --glass-bg: rgba(44, 44, 48, 0.48);
+    --glass-bg-strong: rgba(50, 50, 55, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.14);
+    --glass-shadow: 0 1px 0 rgba(255,255,255,.07) inset, 0 8px 28px rgba(0, 0, 0, 0.55);
+    --glass-highlight: rgba(255, 255, 255, 0.12);
+
+    --sidebar-bg: rgba(36, 36, 40, 0.55);
+    --input-bg: rgba(120, 120, 128, 0.16);
+    --input-border: rgba(255, 255, 255, 0.12);
+    --row-hover: rgba(255, 255, 255, 0.06);
+    --divider: rgba(255, 255, 255, 0.1);
+    --track-bg: rgba(120, 120, 128, 0.24);
+    --thumb-bg: #636366;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: var(--font-sistema);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}

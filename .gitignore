@@ -1,0 +1,20 @@
+# Datos personales reales (formularios de referencia usados para calcar el
+# layout oficial) — NUNCA deben subirse a un repo público.
+Pases (5).pdf
+Vacaciones.pdf
+
+# Artefactos de build (se publican como Release assets, no como código fuente)
+build/
+dist/
+dist_installer/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Editor/OS
+.vscode/
+Thumbs.db
