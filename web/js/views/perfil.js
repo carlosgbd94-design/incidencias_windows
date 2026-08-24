@@ -32,29 +32,40 @@ window.Vistas.perfil = async function (container) {
       <h1 class="page-title">Perfil del Trabajador</h1>
       <p class="page-subtitle">Estos datos se usan para calcular tus límites de pases, tus vacaciones y para generar los PDF de exportación.</p>
     </div>
-    <div class="glass-card" style="max-width:720px;">
-      <div class="field"><label class="field-label">Nombre completo</label><div id="f-nombre"></div></div>
-      <div class="row">
-        <div class="field"><label class="field-label">Número de empleado</label><div id="f-no-empleado"></div></div>
-        <div class="field"><label class="field-label">Turno</label><div id="f-turno"></div></div>
+    <div class="glass-card" style="max-width:1040px;">
+      <div class="grid-2">
+        <div class="stack">
+          <div class="field"><label class="field-label">Nombre completo</label><div id="f-nombre"></div></div>
+          <div class="row">
+            <div class="field"><label class="field-label">Número de empleado</label><div id="f-no-empleado"></div></div>
+            <div class="field"><label class="field-label">Turno</label><div id="f-turno"></div></div>
+          </div>
+          <div class="field"><label class="field-label">Centro de trabajo</label><div id="f-centro"></div></div>
+          <div class="field"><label class="field-label">Área y Dirección a la que pertenece</label><div id="f-area"></div></div>
+        </div>
+        <div class="stack">
+          <div class="row">
+            <div class="field"><label class="field-label">Hora de entrada</label><div id="f-hora-entrada"></div></div>
+            <div class="field"><label class="field-label">Hora de fin de turno</label><div id="f-hora-fin"></div></div>
+          </div>
+          <div class="field"><label class="field-label">Recurso</label><div id="f-recurso"></div></div>
+          <div class="field">
+            <label class="field-label">Días laborables</label>
+            <div id="f-dias" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+          </div>
+          <div class="field"><label class="field-label">Nivel de riesgo</label><div id="f-riesgo" style="max-width:260px;"></div></div>
+        </div>
       </div>
-      <div class="field"><label class="field-label">Centro de trabajo</label><div id="f-centro"></div></div>
-      <div class="field"><label class="field-label">Área y Dirección a la que pertenece</label><div id="f-area"></div></div>
-      <div class="row">
-        <div class="field"><label class="field-label">Hora de entrada</label><div id="f-hora-entrada"></div></div>
-        <div class="field"><label class="field-label">Hora de fin de turno</label><div id="f-hora-fin"></div></div>
-        <div class="field"><label class="field-label">Recurso</label><div id="f-recurso"></div></div>
-      </div>
-      <div class="field">
-        <label class="field-label">Días laborables</label>
-        <div id="f-dias" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
-      </div>
-      <div class="field"><label class="field-label">Nivel de riesgo</label><div id="f-riesgo" style="max-width:260px;"></div></div>
       <hr class="divider">
-      <div class="field">
-        <label class="field-label">Día de cumpleaños o santoral (Art. 141 Fracción I CGT)</label>
-        <div id="f-tipo-dia" style="margin-bottom:10px;"></div>
-        <div style="max-width:140px;" id="f-fecha-dia"></div>
+      <div class="row" style="align-items:flex-start;">
+        <div class="field" style="flex:1;">
+          <label class="field-label">Día de cumpleaños o santoral (Art. 141 Fracción I CGT)</label>
+          <div id="f-tipo-dia" style="margin-bottom:10px;"></div>
+        </div>
+        <div class="field" style="max-width:140px;">
+          <label class="field-label">Fecha (DD/MM)</label>
+          <div id="f-fecha-dia"></div>
+        </div>
       </div>
       <button class="btn btn-primary" id="btn-guardar-perfil" style="margin-top:8px;">Guardar Perfil</button>
     </div>

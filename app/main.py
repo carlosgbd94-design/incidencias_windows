@@ -14,6 +14,18 @@ from app.paths import assets_dir
 from app import diag, telemetry, updater
 from app.version import APP_VERSION
 
+_ANCHO_POR_DEFECTO, _ALTO_POR_DEFECTO = 1180, 820
+
+
+def _leer_geometria_ventana() -> tuple[int, int, bool]:
+    try:
+        datos = json.loads((get_data_dir() / "ventana.json").read_text(encoding="utf-8"))
+        ancho = max(int(datos.get("width", _ANCHO_POR_DEFECTO)), 1000)
+        alto = max(int(datos.get("height", _ALTO_POR_DEFECTO)), 680)
+        return ancho, alto, bool(datos.get("maximized", False))
+    except Exception:
+        return _ANCHO_POR_DEFECTO, _ALTO_POR_DEFECTO, False
+
 
 def main():
     # Recolección de errores (Sentry): se inicia antes que cualquier otra
@@ -82,18 +94,54 @@ def _ejecutar():
         telemetry.establecer_usuario(dict(obtener_perfil(api.conn)))
     except Exception:
         pass
+
+    ancho_guardado, alto_guardado, maximizada_guardada = _leer_geometria_ventana()
     web_dir = assets_dir().parent / "web"
     ventana = webview.create_window(
         "Control de Pases e Incidencias - SESEQ",
         url=str(web_dir / "index.html"),
         js_api=api,
-        width=1180,
-        height=820,
+        width=ancho_guardado,
+        height=alto_guardado,
+        maximized=maximizada_guardada,
         min_size=(1000, 680),
         background_color="#EDF1FB",
     )
     api.window = ventana
     diag.log("create_window() devolvió (aún no se muestra ni se carga nada)")
+
+    # Recordar tamaño/estado de la ventana entre sesiones -- lo mínimo que se
+    # espera de cualquier programa de Windows hecho con cuidado, y no lo
+    # traía. No se guarda x/y (posición): con varios monitores, un monitor
+    # desconectado entre sesiones dejaría la ventana fuera de pantalla.
+    # _ultimo_tamano se actualiza solo mientras NO está maximizada (vía el
+    # evento resized) para no perder el tamaño real si el usuario redimensiona
+    # y luego maximiza antes de cerrar -- guardar el tamaño maximizado como si
+    # fuera el "restaurado" reabriría la ventana gigante la próxima vez.
+    _estado_ventana = {"maximizada": maximizada_guardada}
+    _ultimo_tamano = {"width": ancho_guardado, "height": alto_guardado}
+
+    def _en_resized():
+        if not _estado_ventana["maximizada"]:
+            try:
+                _ultimo_tamano["width"], _ultimo_tamano["height"] = ventana.width, ventana.height
+            except Exception:
+                pass
+
+    ventana.events.maximized += lambda: _estado_ventana.__setitem__("maximizada", True)
+    ventana.events.restored += lambda: _estado_ventana.__setitem__("maximizada", False)
+    ventana.events.resized += _en_resized
+
+    def _guardar_geometria_ventana():
+        try:
+            datos = {
+                "maximized": _estado_ventana["maximizada"],
+                "width": _ultimo_tamano["width"],
+                "height": _ultimo_tamano["height"],
+            }
+            (get_data_dir() / "ventana.json").write_text(json.dumps(datos), encoding="utf-8")
+        except Exception:
+            pass
 
     def _avisar_actualizacion_lista(version):
         # tipo 'update' (no 'success'): este aviso no se debe confundir con
@@ -151,6 +199,7 @@ def _ejecutar():
     ventana.events.shown += _iniciar_revision_diferida
     ventana.events.shown += _avisar_si_se_actualizo
     ventana.events.closing += lambda: diag.log("evento closing")
+    ventana.events.closing += _guardar_geometria_ventana
     ventana.events.closing += updater.instalar_al_cerrar
 
     icono = assets_dir() / "icon.ico"
