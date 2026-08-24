@@ -8,12 +8,27 @@ import threading
 import webview
 
 from app.api import Api
-from app.database import get_data_dir
+from app.database import get_data_dir, obtener_perfil
 from app.paths import assets_dir
-from app import diag, updater
+from app import diag, telemetry, updater
+from app.version import APP_VERSION
 
 
 def main():
+    # Recolección de errores (Sentry): se inicia antes que cualquier otra
+    # cosa para que un fallo durante el arranque mismo también quede
+    # cubierto. No puede capturar un cuelgue (eso sigue siendo trabajo de la
+    # bitácora de abajo), solo excepciones de Python -- ver app/telemetry.py.
+    telemetry.iniciar()
+    try:
+        _ejecutar()
+    except Exception as e:
+        diag.log(f"main(): excepción no manejada -> {type(e).__name__}: {e}")
+        telemetry.reportar(e)
+        raise
+
+
+def _ejecutar():
     # Bitácora de arranque: como el cuelgue reportado no se puede reproducir
     # en el entorno de desarrollo (sin sesión de escritorio real), este log
     # queda en %LOCALAPPDATA%\ControlPasesSESEQ\startup.log en la máquina
@@ -31,8 +46,18 @@ def main():
     hubo_reparacion = updater.reparar_si_quedo_pendiente()
     diag.log(f"reparar_si_quedo_pendiente() -> {hubo_reparacion}")
 
+    # Si la app se acaba de abrir con una versión distinta a la última
+    # registrada, la actualización silenciosa sí se aplicó desde el cierre
+    # anterior -- se avisa una vez con un toast (antes no había ninguna
+    # confirmación de que la instalación en sí hubiera funcionado).
+    version_anterior = updater.revisar_si_se_acaba_de_actualizar()
+
     api = Api()
     diag.log("Api() creada (conexión SQLite abierta)")
+    try:
+        telemetry.establecer_usuario(dict(obtener_perfil(api.conn)))
+    except Exception:
+        pass
     web_dir = assets_dir().parent / "web"
     ventana = webview.create_window(
         "Control de Pases e Incidencias - SESEQ",
@@ -52,6 +77,15 @@ def main():
             ventana.evaluate_js(f"window.Api && Api.mostrarToast({json.dumps(mensaje)}, 'success')")
         except Exception:
             pass  # la ventana pudo haberse cerrado ya; no es crítico
+
+    def _avisar_si_se_actualizo():
+        if not version_anterior:
+            return
+        mensaje = f"Se actualizó correctamente a la versión {APP_VERSION}."
+        try:
+            ventana.evaluate_js(f"window.Api && Api.mostrarToast({json.dumps(mensaje)}, 'success')")
+        except Exception:
+            pass
 
     def _iniciar_revision_diferida():
         # Se dispara solo hasta que la ventana ya está mostrada y respondiendo
@@ -83,6 +117,7 @@ def main():
     ventana.events.loaded += lambda: diag.log("evento loaded (HTML/CSS/JS ya cargados en WebView2)")
     ventana.events.loaded += lambda: threading.Timer(4.0, _revisar_puente_js).start()
     ventana.events.shown += _iniciar_revision_diferida
+    ventana.events.shown += _avisar_si_se_actualizo
     ventana.events.closing += lambda: diag.log("evento closing")
     ventana.events.closing += updater.instalar_al_cerrar
 

@@ -202,6 +202,40 @@ def instalar_al_cerrar() -> None:
     _lanzar_instalador_silencioso(ruta)
 
 
+def _archivo_ultima_version():
+    return get_data_dir() / "ultima_version_ejecutada.txt"
+
+
+def revisar_si_se_acaba_de_actualizar() -> str | None:
+    """Compara APP_VERSION con la última versión que se registró como
+    ejecutada en esta máquina (queda escrita en disco en cada arranque).
+
+    Si difieren y ya existía un registro previo (no es la primera vez que se
+    abre la app), la actualización silenciosa se aplicó desde la última vez
+    que se cerró -- devuelve la versión anterior para poder avisarle al
+    usuario que sí se actualizó correctamente (antes no había ningún aviso
+    de esto, solo el de "hay una nueva versión lista para instalar", que se
+    ve una sola vez y no confirma que la instalación en sí haya funcionado).
+    Devuelve None si es la primera ejecución o si la versión no cambió.
+    """
+    ruta = _archivo_ultima_version()
+    anterior = None
+    try:
+        if ruta.exists():
+            anterior = ruta.read_text(encoding="utf-8").strip() or None
+    except Exception:
+        anterior = None
+    try:
+        ruta.write_text(APP_VERSION, encoding="utf-8")
+    except Exception:
+        pass
+    if anterior and anterior != APP_VERSION:
+        diag.log(f"updater: versión ejecutada ({APP_VERSION}) distinta a la última registrada "
+                  f"({anterior}) -> la actualización silenciosa sí se aplicó")
+        return anterior
+    return None
+
+
 def reparar_si_quedo_pendiente() -> bool:
     """Debe llamarse UNA vez, al inicio de main(), antes de crear la ventana.
 

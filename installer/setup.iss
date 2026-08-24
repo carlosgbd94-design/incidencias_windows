@@ -7,7 +7,7 @@
 ; en el equipo de la dependencia.
 
 #define MyAppName "Control de Pases e Incidencias SESEQ"
-#define MyAppVersion "1.4.4"
+#define MyAppVersion "1.4.5"
 #define MyAppPublisher "SESEQ - Direccion de Recursos Humanos"
 #define MyAppExeName "ControlPasesSESEQ.exe"
 

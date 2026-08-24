@@ -3,6 +3,7 @@ frontend vía window.pywebview.api.<metodo>(...). Siempre responde con
 {"ok": bool, "error": str|None, "data": ...} para que api.js lo maneje de
 forma uniforme.
 """
+import functools
 from datetime import date, datetime
 
 import webview
@@ -15,6 +16,7 @@ from app.business_rules import (
 from app.database import get_connection, init_db, obtener_perfil
 from app.holidays import asegurar_festivos_para, obtener_festivos
 from app.version import APP_VERSION
+from app import telemetry
 # app.pdf_export importa reportlab (~0.25s de arranque medidos en frío) para
 # dibujar los PDF; se importa perezosamente dentro de exportar_pases()/
 # exportar_vacaciones() en vez de aquí arriba, para que ese costo no se pague
@@ -31,6 +33,30 @@ def _fail(mensaje: str):
     return {"ok": False, "error": mensaje, "data": None}
 
 
+def _reportar_si_falla(metodo):
+    """Envuelve un método de Api para que un bug real (excepción no
+    prevista, distinta de los _fail() deliberados de validación) quede
+    reportado a la telemetría en vez de romper el puente en silencio, y el
+    frontend reciba un error legible en vez de quedarse esperando."""
+    @functools.wraps(metodo)
+    def envoltura(self, *args, **kwargs):
+        try:
+            return metodo(self, *args, **kwargs)
+        except Exception as e:
+            telemetry.reportar(e)
+            return _fail("Ocurrió un error inesperado. Ya quedó registrado para revisión.")
+    return envoltura
+
+
+def _envolver_metodos_publicos(cls):
+    for nombre, atributo in list(vars(cls).items()):
+        if nombre.startswith("_") or not callable(atributo):
+            continue
+        setattr(cls, nombre, _reportar_si_falla(atributo))
+    return cls
+
+
+@_envolver_metodos_publicos
 class Api:
     def __init__(self):
         self.window = None
@@ -552,13 +578,16 @@ class Api:
 
     def registrar_error_js(self, mensaje):
         """Recibe errores no controlados del frontend (window.onerror /
-        unhandledrejection) y los agrega a un log local, para poder
-        diagnosticar fallas de la interfaz sin herramientas de depuración."""
+        unhandledrejection), los agrega a un log local (diagnóstico sin
+        herramientas de depuración) y además los manda a la telemetría
+        centralizada, ya que un error de JS nunca lanza una excepción de
+        Python que el decorador de Api pudiera capturar solo."""
         from datetime import datetime as dt
         from app.database import get_data_dir
         log_path = get_data_dir() / "debug.log"
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"[{dt.now().isoformat(timespec='seconds')}] {mensaje}\n")
+        telemetry.reportar_mensaje(f"JS: {mensaje}")
         return _ok()
 
 

@@ -26,10 +26,15 @@
 
   // Versión visible en el pie del menú. No usa Api.llamar (ese muestra un
   // toast de error y espera hasta 30s si el puente no responde) -- aquí
-  // basta con intentar unas cuantas veces en silencio y desistir.
+  // basta con intentar en silencio, con espera creciente, sin desistir tan
+  // pronto: en máquinas lentas (antivirus corporativo escaneando WebView2 en
+  // el primer arranque, perfiles de red, etc.) el puente puede tardar varios
+  // minutos en quedar listo, y antes esta función se rendía a los 30s y el
+  // "Versión —" se quedaba pegado para siempre aunque el puente sí llegara.
   (function mostrarVersion() {
     const el = document.getElementById("app-version");
     let intentos = 0;
+    const LIMITE_INTENTOS = 400; // ~30s rápidos + ~10min de reintento lento
     const intentar = () => {
       if (window.pywebview && window.pywebview.api && window.pywebview.api.version_actual) {
         window.pywebview.api.version_actual()
@@ -38,7 +43,9 @@
         return;
       }
       intentos += 1;
-      if (intentos < 300) setTimeout(intentar, 100); // ~30s máx (el puente puede tardar 8-9s en máquinas lentas), luego desiste en silencio
+      if (intentos >= LIMITE_INTENTOS) return; // el puente nunca llegó, desiste
+      const espera = intentos < 300 ? 100 : 1500; // primeros ~30s rápido, luego cada 1.5s
+      setTimeout(intentar, espera);
     };
     intentar();
   })();
