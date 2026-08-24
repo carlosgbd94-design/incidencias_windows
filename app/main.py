@@ -96,18 +96,26 @@ def _ejecutar():
     diag.log("create_window() devolvió (aún no se muestra ni se carga nada)")
 
     def _avisar_actualizacion_lista(version):
-        mensaje = f"Nueva versión {version} descargada. Se instalará sola al cerrar la app."
+        # tipo 'update' (no 'success'): este aviso no se debe confundir con
+        # un "guardado correctamente" cualquiera -- es la única notificación
+        # visible de todo el flujo de auto-actualización, tiene que notarse.
+        # Además del toast (que desaparece solo) se deja una insignia fija en
+        # el pie del menú durante el resto de la sesión, para que no dependa
+        # de haber visto el toast a tiempo.
+        mensaje_toast = f"Nueva versión {version} lista. Se instalará sola al cerrar la app."
+        mensaje_badge = f"Actualización {version} lista — se instala al cerrar"
         try:
-            ventana.evaluate_js(f"window.Api && Api.mostrarToast({json.dumps(mensaje)}, 'success')")
+            ventana.evaluate_js(f"window.Api && Api.mostrarToast({json.dumps(mensaje_toast)}, 'update')")
+            ventana.evaluate_js(f"window.Api && Api.mostrarBadgeActualizacion({json.dumps(mensaje_badge)})")
         except Exception:
             pass  # la ventana pudo haberse cerrado ya; no es crítico
 
     def _avisar_si_se_actualizo():
         if not version_anterior:
             return
-        mensaje = f"Se actualizó correctamente a la versión {APP_VERSION}."
+        mensaje = f"Se actualizó a la versión {APP_VERSION}."
         try:
-            ventana.evaluate_js(f"window.Api && Api.mostrarToast({json.dumps(mensaje)}, 'success')")
+            ventana.evaluate_js(f"window.Api && Api.mostrarToast({json.dumps(mensaje)}, 'update')")
         except Exception:
             pass
 

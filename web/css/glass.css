@@ -41,6 +41,31 @@
   -webkit-backdrop-filter: blur(var(--blur-strong)) saturate(160%);
 }
 
+/* ---------- Pantalla de arranque ----------
+   Se muestra desde el primer instante (antes de que exista el puente
+   window.pywebview.api) y se desvanece en cuanto responde -- así una
+   conexión lenta se lee como "cargando" en vez de como una app rota o
+   congelada mostrando un guion suelto. */
+.boot-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-4);
+  background: var(--bg-0);
+  transition: opacity .45s var(--ease-out);
+}
+.boot-overlay.oculto { opacity: 0; pointer-events: none; }
+.boot-logo { width: 56px; height: 56px; border-radius: 15px; animation: boot-pulse 1.8s var(--ease-out) infinite; }
+@keyframes boot-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+.boot-spinner { width: 30px; height: 30px; animation: boot-spin 1s linear infinite; margin-top: -4px; }
+.boot-spinner-track, .boot-spinner-fill { fill: none; stroke-width: 3.5; }
+.boot-spinner-track { stroke: var(--track-bg); }
+.boot-spinner-fill {
+  stroke: var(--accent-1); stroke-linecap: round;
+  stroke-dasharray: 113; stroke-dashoffset: 85;
+}
+@keyframes boot-spin { to { transform: rotate(360deg); } }
+.boot-text { font-size: 13px; font-weight: 600; color: var(--text-secondary); letter-spacing: -.01em; }
+
 /* ---------- Layout raíz ---------- */
 .app-shell { display: flex; height: 100vh; padding: var(--space-4); gap: var(--space-4); }
 .sidebar {
@@ -56,6 +81,23 @@
   flex-direction: column;
   padding: var(--space-5) var(--space-3);
 }
+/* Insignia persistente de "actualización lista" -- a diferencia del toast
+   (que desaparece solo), esto se queda visible en el pie del menú durante
+   toda la sesión, como hacen Chrome/VSCode, para que descubrir que hay una
+   actualización pendiente no dependa de haber visto el toast a tiempo. */
+.update-badge {
+  display: flex; align-items: center; gap: 6px;
+  margin: 8px 12px 0; padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(0,122,255,.12);
+  border: 1px solid rgba(0,122,255,.22);
+  color: var(--accent-1);
+  font-size: 11px; font-weight: 700;
+  animation: update-badge-in .3s var(--ease-spring);
+}
+.update-badge svg { flex-shrink: 0; }
+@keyframes update-badge-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
 .brand { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-3) var(--space-5); }
 .brand-logo { width: 34px; height: 34px; border-radius: 9px; display: block; flex-shrink: 0; }
 .brand-title { font-weight: 700; font-size: 14.5px; line-height: 1.2; color: var(--text-primary); }
@@ -276,6 +318,7 @@
 /* ---------- Toast ---------- */
 #toast-host { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; z-index: 100; }
 .toast {
+  display: flex; align-items: flex-start; gap: 11px;
   padding: 13px 17px; border-radius: var(--radius-md); font-size: 13.5px; font-weight: 500;
   background: var(--glass-bg-strong); backdrop-filter: blur(var(--blur-strong)); -webkit-backdrop-filter: blur(var(--blur-strong));
   border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow);
@@ -283,9 +326,34 @@
   max-width: 340px;
   color: var(--text-primary);
 }
+.toast-icon {
+  flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 1px;
+}
+.toast-msg { padding-top: 3px; line-height: 1.4; }
 .toast.error { border-left: 3px solid var(--danger); }
+.toast.error .toast-icon { color: var(--danger); background: rgba(255,59,48,.14); }
 .toast.success { border-left: 3px solid var(--success); }
+.toast.success .toast-icon { color: var(--success); background: rgba(52,199,89,.14); }
+/* .update tiene más presencia a propósito (borde más grueso, icono en
+   insignia de acento, animación de entrada más marcada): no debe pasar
+   desapercibido como un "guardado" cualquiera -- es la única notificación
+   silenciosa de todo el flujo de auto-actualización. */
+.toast.update {
+  border: 1px solid rgba(0,122,255,.35); border-left: 4px solid var(--accent-1);
+  box-shadow: var(--glass-shadow), 0 0 0 1px rgba(0,122,255,.06);
+  max-width: 380px;
+  animation: toast-in-update .38s var(--ease-spring);
+}
+.toast.update .toast-icon { color: var(--accent-1); background: rgba(0,122,255,.16); }
+.toast.update .toast-msg { font-weight: 600; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes toast-in-update {
+  0% { opacity: 0; transform: translateY(10px) scale(.94); }
+  60% { opacity: 1; transform: translateY(-2px) scale(1.015); }
+  100% { transform: translateY(0) scale(1); }
+}
 
 /* ---------- Anillo de progreso + tarjetas de estadística ---------- */
 .stat-row { display: flex; align-items: center; gap: var(--space-6); flex-wrap: wrap; }

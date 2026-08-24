@@ -9,6 +9,20 @@
 <body>
   <div class="mesh-bg"><div class="blob"></div></div>
 
+  <div id="boot-overlay" class="boot-overlay">
+    <svg class="boot-logo" viewBox="0 0 256 256" aria-hidden="true">
+      <path d="M128 8 C 216 8 248 40 248 128 C 248 216 216 248 128 248 C 40 248 8 216 8 128 C 8 40 40 8 128 8 Z" fill="#4C6FFF"/>
+      <circle cx="122" cy="118" r="62" fill="none" stroke="#FFFFFF" stroke-width="16"/>
+      <path d="M156 152 L196 192 M196 192 L196 168 M196 192 L172 192" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M122 88 L122 122 L146 138" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <svg class="boot-spinner" viewBox="0 0 44 44" aria-hidden="true">
+      <circle class="boot-spinner-track" cx="22" cy="22" r="18" fill="none"></circle>
+      <circle class="boot-spinner-fill" cx="22" cy="22" r="18" fill="none"></circle>
+    </svg>
+    <div class="boot-text" id="boot-text">Iniciando…</div>
+  </div>
+
   <div class="app-shell">
     <nav class="sidebar">
       <div class="brand">
@@ -53,6 +67,10 @@
       <div style="padding: 6px 12px; font-size: 11px; color: var(--text-secondary); line-height:1.5;">
         SESEQ · Jurisdicción Sanitaria<br>Tus datos se guardan localmente.<br>
         <span id="app-version">Versión —</span>
+      </div>
+      <div id="update-badge" class="update-badge" hidden>
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/></svg>
+        <span id="update-badge-texto">Actualización lista</span>
       </div>
     </nav>
 

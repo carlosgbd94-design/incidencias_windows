@@ -46,18 +46,42 @@ async function llamar(metodo, ...args) {
   return respuesta ? respuesta.data : undefined;
 }
 
+const TOAST_ICONOS = {
+  success: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  error: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v6M12 16.5h.01"/></svg>',
+  // "update" es un tipo aparte (no reutiliza success) para que un aviso de
+  // actualización se distinga a simple vista de un "guardado correctamente"
+  // cualquiera -- se queda más tiempo en pantalla y con más presencia visual.
+  update: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/><path d="M5 20h14"/></svg>',
+};
+
 function mostrarToast(mensaje, tipo = "success") {
   const host = document.getElementById("toast-host");
   const el = document.createElement("div");
   el.className = `toast ${tipo}`;
-  el.textContent = mensaje;
+  const badge = document.createElement("span");
+  badge.className = "toast-icon";
+  badge.innerHTML = TOAST_ICONOS[tipo] || TOAST_ICONOS.success;
+  const texto = document.createElement("span");
+  texto.className = "toast-msg";
+  texto.textContent = mensaje;
+  el.append(badge, texto);
   host.appendChild(el);
+  const duracion = tipo === "update" ? 9000 : 3400;
   setTimeout(() => {
     el.style.transition = "opacity .3s, transform .3s";
     el.style.opacity = "0";
     el.style.transform = "translateY(6px) scale(.97)";
     setTimeout(() => el.remove(), 320);
-  }, 3400);
+  }, duracion);
+}
+
+function mostrarBadgeActualizacion(mensaje) {
+  const badge = document.getElementById("update-badge");
+  const texto = document.getElementById("update-badge-texto");
+  if (!badge || !texto) return;
+  texto.textContent = mensaje;
+  badge.hidden = false;
 }
 
 function mostrarErrorVista(container, mensaje) {
@@ -70,4 +94,4 @@ function mostrarErrorVista(container, mensaje) {
   container.querySelector("#btn-reintentar").onclick = () => location.reload();
 }
 
-window.Api = { llamar, mostrarToast, mostrarErrorVista };
+window.Api = { llamar, mostrarToast, mostrarErrorVista, mostrarBadgeActualizacion };
