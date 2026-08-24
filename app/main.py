@@ -27,6 +27,27 @@ def _leer_geometria_ventana() -> tuple[int, int, bool]:
         return _ANCHO_POR_DEFECTO, _ALTO_POR_DEFECTO, False
 
 
+def _transparencia_habilitada_en_windows() -> bool:
+    """"Efectos de transparencia" de Windows (Configuración > Personalización
+    > Colores) -- si el usuario o su área de sistemas ya lo apagó (típico en
+    equipos con GPU débil, para aliviar el compositor de toda la interfaz de
+    Windows), el vidrio esmerilado real (backdrop-filter) de esta app es
+    justo el tipo de efecto que esa opción existe para evitar. Se respeta en
+    vez de forzar el blur igual -- ver [data-transparencia="off"] en
+    web/css/tokens.css. Si no se puede leer el registro por lo que sea, se
+    asume que sí está habilitada (comportamiento actual, sin cambios)."""
+    try:
+        import winreg
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        ) as clave:
+            valor, _ = winreg.QueryValueEx(clave, "EnableTransparency")
+            return bool(valor)
+    except Exception:
+        return True
+
+
 def main():
     # Recolección de errores (Sentry): se inicia antes que cualquier otra
     # cosa para que un fallo durante el arranque mismo también quede
@@ -87,6 +108,9 @@ def _ejecutar():
     # anterior -- se avisa una vez con un toast (antes no había ninguna
     # confirmación de que la instalación en sí hubiera funcionado).
     version_anterior = updater.revisar_si_se_acaba_de_actualizar()
+
+    transparencia_ok = _transparencia_habilitada_en_windows()
+    diag.log(f"Efectos de transparencia de Windows habilitados: {transparencia_ok}")
 
     api = Api()
     diag.log("Api() creada (conexión SQLite abierta)")
@@ -192,9 +216,18 @@ def _ejecutar():
         except Exception as e:
             diag.log(f"chequeo del puente JS FALLÓ (evaluate_js lanzó excepción): {e!r}")
 
+    def _aplicar_preferencia_transparencia():
+        if transparencia_ok:
+            return  # ya es el valor por defecto del CSS, no hace falta tocar nada
+        try:
+            ventana.evaluate_js('document.documentElement.dataset.transparencia = "off"')
+        except Exception:
+            pass
+
     ventana.events.before_show += lambda: diag.log("evento before_show")
     ventana.events.shown += lambda: diag.log("evento shown (ventana nativa visible en pantalla)")
     ventana.events.loaded += lambda: diag.log("evento loaded (HTML/CSS/JS ya cargados en WebView2)")
+    ventana.events.loaded += _aplicar_preferencia_transparencia
     ventana.events.loaded += lambda: threading.Timer(4.0, _revisar_puente_js).start()
     ventana.events.shown += _iniciar_revision_diferida
     ventana.events.shown += _avisar_si_se_actualizo

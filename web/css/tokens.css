@@ -47,8 +47,13 @@
   --radius-sm: 10px;
   --radius-pill: 999px;
 
-  --blur-panel: 20px;
-  --blur-strong: 30px;
+  /* Bajado de 20/30px: casi el mismo efecto "vidrio esmerilado" a simple
+     vista (macOS/iOS de hecho usan radios modestos, no exagerados) pero con
+     bastante menos costo de composición en GPUs viejas/integradas -- ver
+     [data-transparencia="off"] más abajo para la salida de emergencia total
+     en máquinas donde ni esto alcanza. */
+  --blur-panel: 14px;
+  --blur-strong: 20px;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -96,8 +101,8 @@
     --accent-1: #0A84FF;
     --accent-1-active: #409CFF;
 
-    --blur-panel: 26px;
-    --blur-strong: 36px;
+    --blur-panel: 18px;
+    --blur-strong: 24px;
 
     --glass-bg: rgba(44, 44, 48, 0.48);
     --glass-bg-strong: rgba(50, 50, 55, 0.72);
@@ -113,6 +118,32 @@
     --track-bg: rgba(120, 120, 128, 0.24);
     --thumb-bg: #636366;
   }
+}
+
+/* Salida de emergencia para GPUs viejas/integradas donde el blur en tiempo
+   real (backdrop-filter) se siente lento en general, no solo al abrir. Se
+   activa sola si Windows mismo tiene apagados los "Efectos de transparencia"
+   (Configuración > Personalización > Colores) -- ver app/main.py, se
+   detecta por registro y se inyecta como atributo al cargar. Cambia el
+   vidrio por un color sólido casi idéntico a simple vista, sin blur que
+   componer cada frame. */
+:root[data-transparencia="off"] {
+  --blur-panel: 0px;
+  --blur-strong: 0px;
+  --glass-bg: var(--bg-1);
+  --glass-bg-strong: var(--bg-1);
+  --sidebar-bg: var(--bg-1);
+}
+:root[data-transparencia="off"] .glass-panel,
+:root[data-transparencia="off"] .glass-card,
+:root[data-transparencia="off"] .glass-strong,
+:root[data-transparencia="off"] .sidebar,
+:root[data-transparencia="off"] .toast,
+:root[data-transparencia="off"] .glass-select .menu,
+:root[data-transparencia="off"] .date-popover,
+:root[data-transparencia="off"] #boot-overlay {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 * { box-sizing: border-box; }
