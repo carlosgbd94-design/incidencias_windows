@@ -25,9 +25,7 @@ import sentry_sdk
 from app.database import get_data_dir
 from app.version import APP_VERSION
 
-# TODO: reemplazar con el DSN real del proyecto en sentry.io. Mientras esté
-# vacío, iniciar() no hace nada y la app se comporta como si esto no existiera.
-SENTRY_DSN = ""
+SENTRY_DSN = "https://f2e244051acd6fa415c2102e1aee08de@o4511548180267008.ingest.us.sentry.io/4511966828691456"
 
 _activo = False
 
