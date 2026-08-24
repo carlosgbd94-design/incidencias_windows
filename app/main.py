@@ -3,6 +3,7 @@ Lanza la interfaz (HTML/CSS con vidrio esmerilado real) en una ventana nativa
 vía pywebview, con el backend de Python expuesto como API a JavaScript.
 """
 import json
+import os
 import threading
 
 import webview
@@ -36,6 +37,29 @@ def _ejecutar():
     # app -- así ya no hay que adivinar dónde se atora.
     diag.reiniciar()
     diag.log("main() inicio")
+
+    # Se revisó todo app/ y confirmado que el ÚNICO código propio que toca la
+    # red es updater.py, y ya corre en un hilo de fondo aparte, disparado
+    # hasta que la ventana ya está mostrada (ver más abajo) -- no puede ser
+    # la causa de que la ventana nativa se marque "no responde" antes de
+    # aparecer. El sospechoso real es WebView2/Chromium mismo: en un arranque
+    # "en frío" intenta por su cuenta varias llamadas de red de fondo
+    # (actualización de componentes, listas de Safe Browsing, "variations",
+    # telemetría) que nada en este código controla. En una red corporativa
+    # que descarta esos paquetes en silencio (en vez de rechazarlos), cada
+    # una de esas llamadas agota su propio tiempo de espera (20-30s) antes de
+    # rendirse -- varias de ellas sumadas explican perfectamente un arranque
+    # que se "cuelga" un par de minutos y luego funciona solo. Esta variable
+    # de entorno es el mecanismo oficial de Microsoft para desactivarlas sin
+    # necesitar que pywebview exponga CoreWebView2EnvironmentOptions
+    # directamente (pywebview 6.2.1 no lo expone). Debe fijarse antes de que
+    # se cree el entorno de WebView2 (create_window()/webview.start() abajo).
+    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
+        "--disable-background-networking --disable-component-update "
+        "--disable-domain-reliability --disable-client-side-phishing-detection "
+        "--disable-sync --no-first-run --no-pings --no-service-autorun"
+    )
+    diag.log("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS fijado (sin llamadas de red de fondo de Chromium)")
 
     # Autoreparación: si una sesión anterior dejó un instalador ya verificado
     # sin poder aplicarse (ej. la ventana se quedó "no responde" y alguien
