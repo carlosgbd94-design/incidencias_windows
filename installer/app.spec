@@ -52,6 +52,10 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=os.path.join(PROJECT_DIR, "assets", "icon.ico"),
+    # DPI awareness (PerMonitorV2): sin esto Windows escala la ventana entera
+    # como bitmap en cualquier pantalla >100% (la mayoría hoy en día) -- se ve
+    # borroso y le suma trabajo de GPU a cada cuadro. Ver installer/app.manifest.
+    manifest=os.path.join(PROJECT_DIR, "installer", "app.manifest"),
 )
 
 coll = COLLECT(

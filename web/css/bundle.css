@@ -149,6 +149,17 @@
   -webkit-backdrop-filter: none !important;
 }
 
+/* Respeta "Mostrar animaciones en Windows" (Accesibilidad > Efectos
+   visuales) -- Chromium/WebView2 expone esto solo como prefers-reduced-motion,
+   sin necesidad de leer el registro por separado como con la transparencia. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
