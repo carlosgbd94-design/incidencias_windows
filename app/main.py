@@ -111,12 +111,26 @@ def _ejecutar():
     # necesitar que pywebview exponga CoreWebView2EnvironmentOptions
     # directamente (pywebview 6.2.1 no lo expone). Debe fijarse antes de que
     # se cree el entorno de WebView2 (create_window()/webview.start() abajo).
+    # --no-proxy-server: nuevo 2026-08-25, tras ver un cuelgue reproducido en
+    # una máquina que el propio usuario describe como "no tan lenta" -- eso
+    # descarta que sea solo hardware viejo/GPU débil. Cuando Windows tiene
+    # activado "Detectar automáticamente la configuración" de proxy (WPAD,
+    # muy común como ajuste por defecto en redes corporativas/de gobierno),
+    # Chromium intenta resolverlo por su cuenta al inicializar su red --
+    # si esa red no responde limpio a la búsqueda WPAD, la resolución puede
+    # tardar muchos segundos o colgarse, independientemente de qué tan rápida
+    # sea la máquina. Nuestra página es 100% archivos locales (file://), así
+    # que no necesita NINGÚN proxy para cargar -- desactivarlo por completo
+    # para WebView2 es seguro y elimina esta posibilidad de raíz. No se toca
+    # el proxy de updater.py (si lo tuviera) porque ESE sí necesita salir a
+    # internet de verdad (GitHub) y podría depender de un proxy real.
     os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
         "--disable-background-networking --disable-component-update "
         "--disable-domain-reliability --disable-client-side-phishing-detection "
-        "--disable-sync --no-first-run --no-pings --no-service-autorun"
+        "--disable-sync --no-first-run --no-pings --no-service-autorun "
+        "--no-proxy-server"
     )
-    diag.log("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS fijado (sin llamadas de red de fondo de Chromium)")
+    diag.log("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS fijado (sin red de fondo ni resolución de proxy/WPAD)")
 
     # Autoreparación: si una sesión anterior dejó un instalador ya verificado
     # sin poder aplicarse (ej. la ventana se quedó "no responde" y alguien
