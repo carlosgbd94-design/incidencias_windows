@@ -181,12 +181,17 @@ def hay_actualizacion_lista() -> dict | None:
 def _lanzar_instalador_silencioso(ruta: str) -> None:
     try:
         subprocess.Popen(
-            # /SILENT (no /VERYSILENT): sin páginas del asistente ni clics
-            # necesarios, pero SÍ muestra la ventanita de progreso de Inno
-            # Setup -- el usuario pidió explícitamente poder ver que la
-            # actualización se está instalando, en vez de que la app
-            # simplemente desaparezca sin ninguna señal.
-            [ruta, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
+            # /VERYSILENT (no /SILENT): se probó mostrar la ventana de
+            # progreso de Inno Setup y salió mal -- como nuestra propia
+            # ventana ya se está cerrando al mismo tiempo que esa ventana
+            # aparece, y además /CLOSEAPPLICATIONS a veces necesita su propio
+            # aviso de "cerrando aplicaciones", el usuario terminaba viendo
+            # dos ventanas descoordinadas en vez de una transición limpia.
+            # La confirmación visual de que se está actualizando ahora la da
+            # nuestra propia interfaz (ver Api.actualizar_ahora en api.py,
+            # que muestra un aviso con nuestro propio diseño ANTES de cerrar
+            # la ventana), no la ventana genérica del instalador.
+            [ruta, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
             close_fds=True,
         )

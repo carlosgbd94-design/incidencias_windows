@@ -28,6 +28,26 @@
     <div class="boot-text" id="boot-text">Iniciando…</div>
   </div>
 
+  <!-- Mismo tratamiento visual que boot-overlay, pero para el momento de
+       "se está instalando la actualización" al cerrar manualmente desde el
+       botón -- empieza oculto. No se usa la ventana del instalador de Inno
+       Setup para esto (ver app/updater.py): mostrar nuestra propia interfaz
+       antes de cerrar da una transición coherente en vez de dos ventanas
+       distintas apareciendo una junto a la otra. -->
+  <div id="update-overlay" class="boot-overlay oculto">
+    <svg class="boot-logo" viewBox="0 0 256 256" aria-hidden="true">
+      <path d="M128 8 C 216 8 248 40 248 128 C 248 216 216 248 128 248 C 40 248 8 216 8 128 C 8 40 40 8 128 8 Z" fill="#4C6FFF"/>
+      <circle cx="122" cy="118" r="62" fill="none" stroke="#FFFFFF" stroke-width="16"/>
+      <path d="M156 152 L196 192 M196 192 L196 168 M196 192 L172 192" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M122 88 L122 122 L146 138" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <svg class="boot-spinner" viewBox="0 0 44 44" aria-hidden="true">
+      <circle class="boot-spinner-track" cx="22" cy="22" r="18" fill="none"></circle>
+      <circle class="boot-spinner-fill" cx="22" cy="22" r="18" fill="none"></circle>
+    </svg>
+    <div class="boot-text">Instalando actualización…</div>
+  </div>
+
   <div class="app-shell">
     <nav class="sidebar">
       <div class="brand">

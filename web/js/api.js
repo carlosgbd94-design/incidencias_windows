@@ -55,25 +55,112 @@ const TOAST_ICONOS = {
   update: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/><path d="M5 20h14"/></svg>',
 };
 
+// Sonidos sintetizados con Web Audio (osciladores simples) -- nada de
+// archivos de audio ni librerías externas que descargar/empacar, y así
+// tampoco pesan nada en el instalador. Volumen bajo a propósito, pensado
+// para notarse sin ser molesto en una oficina.
+let _audioCtx = null;
+function _contextoAudio() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { return null; }
+  }
+  return _audioCtx;
+}
+function _tono(ctx, frecuencia, inicio, duracion, volumen) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = frecuencia;
+  gain.gain.setValueAtTime(0, ctx.currentTime + inicio);
+  gain.gain.linearRampToValueAtTime(volumen, ctx.currentTime + inicio + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + inicio + duracion);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime + inicio);
+  osc.stop(ctx.currentTime + inicio + duracion + 0.02);
+}
+function reproducirSonido(tipo) {
+  const ctx = _contextoAudio();
+  if (!ctx) return;
+  try {
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    if (tipo === "error") {
+      _tono(ctx, 220, 0, 0.16, 0.07);
+      _tono(ctx, 185, 0.09, 0.18, 0.07);
+    } else if (tipo === "update") {
+      _tono(ctx, 587, 0, 0.09, 0.06);
+      _tono(ctx, 740, 0.08, 0.09, 0.06);
+      _tono(ctx, 988, 0.16, 0.2, 0.07);
+    } else {
+      _tono(ctx, 740, 0, 0.09, 0.06);
+      _tono(ctx, 988, 0.07, 0.15, 0.06);
+    }
+  } catch (e) { /* el sonido nunca debe romper el flujo de la app */ }
+}
+
 function mostrarToast(mensaje, tipo = "success") {
   const host = document.getElementById("toast-host");
   const el = document.createElement("div");
   el.className = `toast ${tipo}`;
+
   const badge = document.createElement("span");
   badge.className = "toast-icon";
   badge.innerHTML = TOAST_ICONOS[tipo] || TOAST_ICONOS.success;
+
   const texto = document.createElement("span");
   texto.className = "toast-msg";
   texto.textContent = mensaje;
-  el.append(badge, texto);
+
+  const cerrar = document.createElement("button");
+  cerrar.type = "button";
+  cerrar.className = "toast-cerrar";
+  cerrar.setAttribute("aria-label", "Cerrar aviso");
+  cerrar.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+  const barraWrap = document.createElement("div");
+  barraWrap.className = "toast-progreso-wrap";
+  const barra = document.createElement("div");
+  barra.className = "toast-progreso";
+  barraWrap.appendChild(barra);
+
+  el.append(badge, texto, cerrar, barraWrap);
   host.appendChild(el);
-  const duracion = tipo === "update" ? 9000 : 3400;
-  setTimeout(() => {
-    el.style.transition = "opacity .3s, transform .3s";
-    el.style.opacity = "0";
-    el.style.transform = "translateY(6px) scale(.97)";
-    setTimeout(() => el.remove(), 320);
-  }, duracion);
+
+  let restante = tipo === "update" ? 9000 : 3400;
+  let inicioCuenta = 0;
+  let temporizador = null;
+
+  const salir = () => {
+    clearTimeout(temporizador);
+    el.classList.add("toast-saliendo");
+    setTimeout(() => el.remove(), 210);
+  };
+
+  const iniciarCuenta = () => {
+    barra.style.transitionDuration = `${restante}ms`;
+    requestAnimationFrame(() => { barra.style.width = "0%"; });
+    inicioCuenta = Date.now();
+    temporizador = setTimeout(salir, restante);
+  };
+
+  // Se pausa mientras el mouse está encima -- una notificación que se
+  // cierra sola justo cuando la estás leyendo se siente mal hecha.
+  el.addEventListener("mouseenter", () => {
+    clearTimeout(temporizador);
+    restante = Math.max(restante - (Date.now() - inicioCuenta), 0);
+    barra.style.transitionDuration = "0ms";
+    barra.style.width = getComputedStyle(barra).width;
+  });
+  el.addEventListener("mouseleave", () => {
+    if (restante > 150) iniciarCuenta(); else salir();
+  });
+  cerrar.addEventListener("click", salir);
+
+  reproducirSonido(tipo);
+  // Doble rAF: garantiza que el navegador ya pintó width:100% antes de
+  // animar hacia 0%, si no, a veces se salta la transición por completo.
+  requestAnimationFrame(() => requestAnimationFrame(iniciarCuenta));
 }
 
 let _badgeClicListo = false;
@@ -91,15 +178,23 @@ function mostrarBadgeActualizacion(mensaje) {
   if (_badgeClicListo) return;
   _badgeClicListo = true;
   badge.addEventListener("click", async () => {
+    const overlay = document.getElementById("update-overlay");
     const textoOriginal = texto.textContent;
     badge.disabled = true;
     texto.textContent = "Actualizando…";
+    // Se muestra la pantalla de "instalando" y se espera un instante ANTES
+    // de pedirle a Python que cierre la ventana -- así el usuario alcanza a
+    // ver la transición con nuestro propio diseño, en vez de que la ventana
+    // desaparezca de golpe apenas se hace clic.
+    if (overlay) overlay.classList.remove("oculto");
+    await new Promise((r) => setTimeout(r, 900));
     try {
       // Si funciona, la ventana se cierra sola desde Python (dispara el
       // cierre normal, que instala y sale) -- no hay nada más que hacer
       // aquí en el caso exitoso.
       await llamar("actualizar_ahora");
     } catch (e) {
+      if (overlay) overlay.classList.add("oculto");
       badge.disabled = false;
       texto.textContent = textoOriginal;
     }
