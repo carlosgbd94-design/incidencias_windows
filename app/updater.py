@@ -181,7 +181,12 @@ def hay_actualizacion_lista() -> dict | None:
 def _lanzar_instalador_silencioso(ruta: str) -> None:
     try:
         subprocess.Popen(
-            [ruta, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
+            # /SILENT (no /VERYSILENT): sin páginas del asistente ni clics
+            # necesarios, pero SÍ muestra la ventanita de progreso de Inno
+            # Setup -- el usuario pidió explícitamente poder ver que la
+            # actualización se está instalando, en vez de que la app
+            # simplemente desaparezca sin ninguna señal.
+            [ruta, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
             close_fds=True,
         )
@@ -190,16 +195,22 @@ def _lanzar_instalador_silencioso(ruta: str) -> None:
 
 
 def instalar_al_cerrar() -> None:
-    """Lanza el instalador ya verificado en silencio y sin esperar a que
-    termine (la app está a punto de cerrarse). Solo debe llamarse desde el
-    handler del evento de cierre de la ventana, nunca durante el uso normal.
+    """Lanza el instalador ya verificado y sin esperar a que termine (la app
+    está a punto de cerrarse). Se llama tanto desde el handler del evento de
+    cierre de la ventana como desde el botón "Actualizar ahora" (ver
+    Api.actualizar_ahora) -- por eso limpia _instalador_listo después de
+    lanzarlo: si se llama dos veces (botón manual + el cierre normal que
+    dispara igual, ya que el botón cierra la ventana) la segunda vez no debe
+    relanzar el instalador otra vez.
     """
     ruta = _instalador_listo["ruta"]
     if not ruta:
         diag.log("updater: instalar_al_cerrar() llamado pero no hay nada listo -> no hace nada")
         return
-    diag.log(f"updater: lanzando instalador silencioso al cerrar ({ruta})")
+    diag.log(f"updater: lanzando instalador ({ruta})")
     _lanzar_instalador_silencioso(ruta)
+    _instalador_listo["ruta"] = None
+    _instalador_listo["version"] = None
 
 
 def _archivo_ultima_version():

@@ -67,6 +67,27 @@ class Api:
     def version_actual(self):
         return _ok(APP_VERSION)
 
+    def actualizacion_lista(self):
+        """Estado real (no un aviso que se vio una sola vez) de si hay una
+        actualización verificada esperando a instalarse -- el frontend lo usa
+        para decidir si mostrar la insignia persistente, en vez de confiar
+        únicamente en el aviso puntual que dispara updater.py."""
+        from app import updater
+        return _ok(updater.hay_actualizacion_lista())
+
+    def actualizar_ahora(self):
+        """Instala la actualización ya verificada de inmediato, sin esperar a
+        que el usuario cierre la app -- dispara el mismo cierre normal de la
+        ventana (evento 'closing'), que ya se encarga de lanzar el
+        instalador; no se lanza dos veces porque instalar_al_cerrar() limpia
+        el estado la primera vez que corre."""
+        from app import updater
+        if not updater.hay_actualizacion_lista():
+            return _fail("No hay ninguna actualización lista para instalar todavía.")
+        if self.window:
+            self.window.destroy()
+        return _ok()
+
     # ---------------- Perfil ----------------
     def perfil_obtener(self):
         return _ok(dict(obtener_perfil(self.conn)))

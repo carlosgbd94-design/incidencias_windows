@@ -71,6 +71,30 @@ def _ejecutar():
     diag.reiniciar()
     diag.log("main() inicio")
 
+    # pywebview inyecta su propio puente JS (webview/js/*.js: api.js,
+    # customize.js, finish.js, state.js, lib/dom_json.js, lib/polyfill.js --
+    # 6 archivos, código de la librería, no nuestro) leyéndolos de disco de
+    # forma SÍNCRONA sobre el hilo principal de la ventana, dentro de
+    # on_navigation_completed -- justo en el mismo hueco entre "shown" y
+    # "loaded" donde el startup.log confirmó el cuelgue real. No se puede
+    # reducir cuántos archivos son (es código de pywebview, no se edita),
+    # pero si el retraso es un antivirus escaneando cada archivo leído, se
+    # puede "precalentarlos" antes en un hilo de fondo -- así ya deberían
+    # estar recién escaneados y en caché para cuando WebView2 los lea de
+    # verdad, de forma síncrona, unos segundos después.
+    def _precalentar_js_de_pywebview():
+        try:
+            import glob
+            from webview.util import get_js_dir
+            for ruta in glob.glob(os.path.join(get_js_dir(), "**", "*.js"), recursive=True):
+                with open(ruta, "rb") as f:
+                    f.read()
+            diag.log("precalentamiento de JS interno de pywebview: completo")
+        except Exception as e:
+            diag.log(f"precalentamiento de JS interno de pywebview: FALLÓ ({e!r}), se ignora")
+
+    threading.Thread(target=_precalentar_js_de_pywebview, daemon=True).start()
+
     # Se revisó todo app/ y confirmado que el ÚNICO código propio que toca la
     # red es updater.py, y ya corre en un hilo de fondo aparte, disparado
     # hasta que la ventana ya está mostrada (ver más abajo) -- no puede ser

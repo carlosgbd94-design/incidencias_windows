@@ -80,12 +80,34 @@ function mostrarToast(mensaje, tipo = "success") {
   }, duracion);
 }
 
+let _badgeClicListo = false;
+
 function mostrarBadgeActualizacion(mensaje) {
   const badge = document.getElementById("update-badge");
   const texto = document.getElementById("update-badge-texto");
   if (!badge || !texto) return;
   texto.textContent = mensaje;
   badge.hidden = false;
+
+  // El listener se engancha una sola vez (mostrarBadgeActualizacion puede
+  // llamarse más de una vez en la misma sesión: al conectar el puente y de
+  // nuevo si updater.py encuentra la actualización un poco después).
+  if (_badgeClicListo) return;
+  _badgeClicListo = true;
+  badge.addEventListener("click", async () => {
+    const textoOriginal = texto.textContent;
+    badge.disabled = true;
+    texto.textContent = "Actualizando…";
+    try {
+      // Si funciona, la ventana se cierra sola desde Python (dispara el
+      // cierre normal, que instala y sale) -- no hay nada más que hacer
+      // aquí en el caso exitoso.
+      await llamar("actualizar_ahora");
+    } catch (e) {
+      badge.disabled = false;
+      texto.textContent = textoOriginal;
+    }
+  });
 }
 
 function mostrarErrorVista(container, mensaje) {
@@ -1504,6 +1526,19 @@ window.Vistas.respaldo = async function (container) {
         window.pywebview.api.version_actual()
           .then((r) => { if (elVersion && r && r.data) elVersion.textContent = `Versión ${r.data}`; })
           .catch(() => {});
+        // Estado real de la actualización (no solo el aviso puntual de
+        // updater.py) -- así la insignia refleja la verdad incluso si esta
+        // pestaña conectó después de que ya se encontró la actualización, o
+        // si por lo que sea el aviso puntual no llegó a tiempo.
+        if (window.pywebview.api.actualizacion_lista) {
+          window.pywebview.api.actualizacion_lista()
+            .then((r) => {
+              if (r && r.data && r.data.version) {
+                Api.mostrarBadgeActualizacion(`Actualización ${r.data.version} lista — se instala al cerrar`);
+              }
+            })
+            .catch(() => {});
+        }
         return;
       }
       intentos += 1;

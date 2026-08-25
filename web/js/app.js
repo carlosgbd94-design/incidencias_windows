@@ -61,6 +61,19 @@
         window.pywebview.api.version_actual()
           .then((r) => { if (elVersion && r && r.data) elVersion.textContent = `Versión ${r.data}`; })
           .catch(() => {});
+        // Estado real de la actualización (no solo el aviso puntual de
+        // updater.py) -- así la insignia refleja la verdad incluso si esta
+        // pestaña conectó después de que ya se encontró la actualización, o
+        // si por lo que sea el aviso puntual no llegó a tiempo.
+        if (window.pywebview.api.actualizacion_lista) {
+          window.pywebview.api.actualizacion_lista()
+            .then((r) => {
+              if (r && r.data && r.data.version) {
+                Api.mostrarBadgeActualizacion(`Actualización ${r.data.version} lista — se instala al cerrar`);
+              }
+            })
+            .catch(() => {});
+        }
         return;
       }
       intentos += 1;
