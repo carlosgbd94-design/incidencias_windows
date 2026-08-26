@@ -124,13 +124,30 @@ def _ejecutar():
     # para WebView2 es seguro y elimina esta posibilidad de raíz. No se toca
     # el proxy de updater.py (si lo tuviera) porque ESE sí necesita salir a
     # internet de verdad (GitHub) y podría depender de un proxy real.
+    # --disable-features=DnsOverHttps...: 2026-08-26, encontrado con el
+    # proceso REALMENTE atorado en vivo (Get-NetTCPConnection sobre el
+    # msedgewebview2.exe hijo) -- tenía dos conexiones HTTPS "Established"
+    # hacia 2001:4860:4860::8888 (el DNS de Google, 8.8.8.8, por el puerto
+    # 443) y nunca avanzaban. Eso es DNS-over-HTTPS ("DNS seguro") de
+    # Chromium: lo intenta al inicializar su red PROPIA, sin que nuestra
+    # página (100% file://, jamás necesita resolver ningún dominio) lo pida
+    # para nada. Las conexiones eran por IPv6 -- confirmado que la conexión
+    # es Totalplay (ISP residencial en México, no una red corporativa
+    # filtrada), y Totalplay tiene fama de IPv6 inconsistente; el handshake
+    # TCP se completaba pero la conexión se quedaba ahí sin avanzar (típico
+    # de problemas de PMTU/fragmentación en IPv6). Chromium espera esa
+    # respuesta antes de seguir, y esa espera es justo lo que se ve como
+    # "(No responde)". No hace falta saber la causa exacta de por qué esa
+    # conexión no avanza -- como la página nunca necesita ningún DNS,
+    # desactivar DNS-over-HTTPS de raíz quita el problema completo.
     os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
         "--disable-background-networking --disable-component-update "
         "--disable-domain-reliability --disable-client-side-phishing-detection "
         "--disable-sync --no-first-run --no-pings --no-service-autorun "
-        "--no-proxy-server"
+        "--no-proxy-server "
+        "--disable-features=DnsOverHttps,DnsOverHttpsUpgrade --dns-over-https-mode=off"
     )
-    diag.log("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS fijado (sin red de fondo ni resolución de proxy/WPAD)")
+    diag.log("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS fijado (sin red de fondo, proxy/WPAD, ni DNS-over-HTTPS)")
 
     # Autoreparación: si una sesión anterior dejó un instalador ya verificado
     # sin poder aplicarse (ej. la ventana se quedó "no responde" y alguien
