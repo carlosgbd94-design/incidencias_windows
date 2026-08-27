@@ -1583,12 +1583,13 @@ window.Vistas.respaldo = async function (container) {
   activar(inicial);
 
   // Pantalla de arranque + versión en el pie del menú, ambas atadas a
-  // cuándo el puente window.pywebview.api queda listo. No usa Api.llamar
-  // (ese muestra un toast de error si el puente no responde) -- aquí basta
-  // con intentar en silencio, con mensajes de estado progresivos para que
-  // una espera larga (antivirus corporativo, máquina lenta, etc.) se sienta
-  // como "cargando" y no como una app rota o congelada mostrando un guion
-  // suelto. La pantalla de arranque se desvanece en cuanto conecta.
+  // cuándo el puente window.puente (QWebChannel, ver webchannel_bridge.py)
+  // queda listo. No usa Api.llamar (ese muestra un toast de error si el
+  // puente no responde) -- aquí basta con intentar en silencio, con
+  // mensajes de estado progresivos para que una espera larga (antivirus
+  // corporativo, máquina lenta, etc.) se sienta como "cargando" y no como
+  // una app rota o congelada mostrando un guion suelto. La pantalla de
+  // arranque se desvanece en cuanto conecta.
   (function conectarConPuente() {
     const overlay = document.getElementById("boot-overlay");
     const textoEstado = document.getElementById("boot-text");
@@ -1614,24 +1615,22 @@ window.Vistas.respaldo = async function (container) {
     }
 
     const intentar = () => {
-      if (window.pywebview && window.pywebview.api && window.pywebview.api.version_actual) {
+      if (window.puente) {
         ocultarOverlay();
-        window.pywebview.api.version_actual()
-          .then((r) => { if (elVersion && r && r.data) elVersion.textContent = `Versión ${r.data}`; })
+        Api.llamar("version_actual")
+          .then((version) => { if (elVersion && version) elVersion.textContent = `Versión ${version}`; })
           .catch(() => {});
         // Estado real de la actualización (no solo el aviso puntual de
         // updater.py) -- así la insignia refleja la verdad incluso si esta
         // pestaña conectó después de que ya se encontró la actualización, o
         // si por lo que sea el aviso puntual no llegó a tiempo.
-        if (window.pywebview.api.actualizacion_lista) {
-          window.pywebview.api.actualizacion_lista()
-            .then((r) => {
-              if (r && r.data && r.data.version) {
-                Api.mostrarBadgeActualizacion(`Actualización ${r.data.version} lista — se instala al cerrar`);
-              }
-            })
-            .catch(() => {});
-        }
+        Api.llamar("actualizacion_lista")
+          .then((datos) => {
+            if (datos && datos.version) {
+              Api.mostrarBadgeActualizacion(`Actualización ${datos.version} lista — se instala al cerrar`);
+            }
+          })
+          .catch(() => {});
         return;
       }
       intentos += 1;
