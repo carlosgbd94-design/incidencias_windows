@@ -1,12 +1,16 @@
-"""Capa de puente Python <-> JavaScript. Cada método es invocable desde el
-frontend vía window.pywebview.api.<metodo>(...). Siempre responde con
-{"ok": bool, "error": str|None, "data": ...} para que api.js lo maneje de
-forma uniforme.
-"""
+"""Capa de servicio que las vistas de Qt llaman directo (sin ningún puente
+JS de por medio, a diferencia de la versión anterior). Puerto de
+app/api.py: 25 de los 30 métodos son SQL + reglas de negocio puras y se
+mueven sin ningún cambio de lógica; solo 5 tocaban `webview` y se adaptan
+a QFileDialog / al cierre normal de la ventana de Qt (ver comentarios en
+cada uno). Se conserva el contrato {"ok","error","data"} y el decorador de
+telemetría -- ver la nota en app/ui/main_window.py sobre por qué."""
 import functools
+import inspect
 from datetime import date, datetime
 
-import webview
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtWidgets import QFileDialog
 
 from app.business_rules import (
     DIAS_ORDINARIO, ORDEN_TIPOS, calcular_minutos_pase, dias_habiles, dias_para_riesgo,
@@ -34,10 +38,9 @@ def _fail(mensaje: str):
 
 
 def _reportar_si_falla(metodo):
-    """Envuelve un método de Api para que un bug real (excepción no
-    prevista, distinta de los _fail() deliberados de validación) quede
-    reportado a la telemetría en vez de romper el puente en silencio, y el
-    frontend reciba un error legible en vez de quedarse esperando."""
+    """Envuelve un método para que un bug real (excepción no prevista,
+    distinta de los _fail() deliberados de validación) quede reportado a la
+    telemetría en vez de romper la vista en silencio."""
     @functools.wraps(metodo)
     def envoltura(self, *args, **kwargs):
         try:
@@ -50,16 +53,28 @@ def _reportar_si_falla(metodo):
 
 def _envolver_metodos_publicos(cls):
     for nombre, atributo in list(vars(cls).items()):
-        if nombre.startswith("_") or not callable(atributo):
+        # inspect.isfunction() (no callable() a secas): un Signal de Qt
+        # también es "callable" a nivel de clase, y envolverlo con
+        # functools.wraps lo reemplazaba por una función normal, rompiendo
+        # .connect() -- isfunction() solo acepta métodos de verdad.
+        if nombre.startswith("_") or not inspect.isfunction(atributo):
             continue
         setattr(cls, nombre, _reportar_si_falla(atributo))
     return cls
 
 
 @_envolver_metodos_publicos
-class Api:
-    def __init__(self):
-        self.window = None
+class Backend(QObject):
+    # actualizar_ahora() emite esto en vez de sostener una referencia a la
+    # ventana y llamarle .destroy() directo -- MainWindow se conecta a esta
+    # señal y decide cómo cerrarse, Backend queda desacoplado de la UI.
+    cierre_solicitado = Signal()
+
+    def __init__(self, ventana_padre=None):
+        super().__init__()
+        # Solo se usa como parent= de los QFileDialog (para que salgan bien
+        # centrados/modales) -- Backend no le llama ningún otro método.
+        self.ventana_padre = ventana_padre
         self.conn = get_connection()
         init_db(self.conn)
 
@@ -68,24 +83,14 @@ class Api:
         return _ok(APP_VERSION)
 
     def actualizacion_lista(self):
-        """Estado real (no un aviso que se vio una sola vez) de si hay una
-        actualización verificada esperando a instalarse -- el frontend lo usa
-        para decidir si mostrar la insignia persistente, en vez de confiar
-        únicamente en el aviso puntual que dispara updater.py."""
         from app import updater
         return _ok(updater.hay_actualizacion_lista())
 
     def actualizar_ahora(self):
-        """Instala la actualización ya verificada de inmediato, sin esperar a
-        que el usuario cierre la app -- dispara el mismo cierre normal de la
-        ventana (evento 'closing'), que ya se encarga de lanzar el
-        instalador; no se lanza dos veces porque instalar_al_cerrar() limpia
-        el estado la primera vez que corre."""
         from app import updater
         if not updater.hay_actualizacion_lista():
             return _fail("No hay ninguna actualización lista para instalar todavía.")
-        if self.window:
-            self.window.destroy()
+        self.cierre_solicitado.emit()
         return _ok()
 
     # ---------------- Perfil ----------------
@@ -302,8 +307,6 @@ class Api:
         return sum(f["dias_habiles"] for f in filas)
 
     def vacaciones_sugerir_fin_ordinario(self, tipo, anio, fecha_inicio):
-        """Sugiere la fecha fin usando todos los días hábiles que le queden
-        disponibles a ese periodo (por si ya se tomaron fragmentos antes)."""
         if tipo not in ("primero", "segundo"):
             return _fail("Tipo de periodo inválido.")
         anio = int(anio)
@@ -316,10 +319,6 @@ class Api:
         return _ok({"fecha_fin": fin.isoformat(), "dias_restantes": dias_restantes})
 
     def vacaciones_registrar_ordinario(self, tipo, anio, fecha_inicio, fecha_fin):
-        """Registra un fragmento del periodo ordinario (1° o 2°). Las
-        vacaciones ordinarias a veces se toman fraccionadas, así que se
-        permiten varios fragmentos por año mientras no se rebasen los
-        DIAS_ORDINARIO días hábiles acumulados de ese periodo."""
         if tipo not in ("primero", "segundo"):
             return _fail("Tipo de periodo inválido.")
         anio = int(anio)
@@ -458,6 +457,30 @@ class Api:
         return _ok()
 
     # ---------------- Exportar ----------------
+    def exportar_contar_pendientes_pases(self, fecha_inicio, fecha_fin, incluir_exportados):
+        """Nuevo -- reemplaza el conteo que web/js/views/exportar.js hacía
+        del lado del cliente (traer las listas completas y filtrar en JS)."""
+        clausula = "" if incluir_exportados else "AND exportado=0"
+        n_part = self.conn.execute(
+            f"SELECT COUNT(*) FROM pases_particulares WHERE fecha BETWEEN ? AND ? {clausula}",
+            (fecha_inicio, fecha_fin),
+        ).fetchone()[0]
+        n_ofic = self.conn.execute(
+            f"SELECT COUNT(*) FROM pases_oficiales WHERE fecha BETWEEN ? AND ? {clausula}",
+            (fecha_inicio, fecha_fin),
+        ).fetchone()[0]
+        return _ok({"total": n_part + n_ofic})
+
+    def exportar_contar_pendientes_vacaciones(self, anio, incluir_exportados):
+        clausula = "" if incluir_exportados else "AND exportado=0"
+        n_periodos = self.conn.execute(
+            f"SELECT COUNT(*) FROM periodos_vacacionales WHERE anio=? {clausula}", (int(anio),),
+        ).fetchone()[0]
+        n_dia = self.conn.execute(
+            f"SELECT COUNT(*) FROM dias_especiales_otorgados WHERE anio=? {clausula}", (int(anio),),
+        ).fetchone()[0]
+        return _ok({"total": n_periodos + n_dia})
+
     def exportar_pases(self, fecha_inicio, fecha_fin, jefe_nombre, incluir_exportados):
         from app.pdf_export import abrir_pdf, generar_pdf_pases
         if not (jefe_nombre or "").strip():
@@ -491,10 +514,11 @@ class Api:
             return _fail("No hay pases pendientes por exportar en ese rango de fechas.")
 
         nombre_sugerido = f"Pases_{perfil['no_empleado']}_{inicio.strftime('%d%m')}-{fin.strftime('%d%m')}_{anio}.pdf"
-        ruta = self.window.create_file_dialog(
-            webview.SAVE_DIALOG, save_filename=nombre_sugerido, file_types=("Archivos PDF (*.pdf)",),
+        # Antes: self.window.create_file_dialog(webview.SAVE_DIALOG, ...) --
+        # QFileDialog.getSaveFileName regresa (ruta, filtro), no una lista.
+        ruta, _filtro = QFileDialog.getSaveFileName(
+            self.ventana_padre, "Guardar PDF de pases", nombre_sugerido, "Archivos PDF (*.pdf)",
         )
-        ruta = _primero(ruta)
         if not ruta:
             return _ok({"cancelado": True})
 
@@ -538,10 +562,9 @@ class Api:
             return _fail("No hay periodos vacacionales pendientes por exportar en ese año.")
 
         nombre_sugerido = f"Vacaciones_{perfil['no_empleado']}_{anio}.pdf"
-        ruta = self.window.create_file_dialog(
-            webview.SAVE_DIALOG, save_filename=nombre_sugerido, file_types=("Archivos PDF (*.pdf)",),
+        ruta, _filtro = QFileDialog.getSaveFileName(
+            self.ventana_padre, "Guardar PDF de vacaciones", nombre_sugerido, "Archivos PDF (*.pdf)",
         )
-        ruta = _primero(ruta)
         if not ruta:
             return _ok({"cancelado": True})
 
@@ -561,10 +584,9 @@ class Api:
         import sqlite3
         from datetime import datetime as dt
         nombre_sugerido = f"Respaldo_ControlPasesSESEQ_{dt.today().strftime('%Y%m%d_%H%M')}.db"
-        ruta = self.window.create_file_dialog(
-            webview.SAVE_DIALOG, save_filename=nombre_sugerido, file_types=("Base de datos SQLite (*.db)",),
+        ruta, _filtro = QFileDialog.getSaveFileName(
+            self.ventana_padre, "Guardar respaldo", nombre_sugerido, "Base de datos SQLite (*.db)",
         )
-        ruta = _primero(ruta)
         if not ruta:
             return _ok({"cancelado": True})
         destino = sqlite3.connect(ruta)
@@ -576,10 +598,9 @@ class Api:
 
     def respaldo_restaurar(self):
         import sqlite3
-        rutas = self.window.create_file_dialog(
-            webview.OPEN_DIALOG, file_types=("Base de datos SQLite (*.db)",),
+        ruta, _filtro = QFileDialog.getOpenFileName(
+            self.ventana_padre, "Restaurar respaldo", "", "Base de datos SQLite (*.db)",
         )
-        ruta = _primero(rutas)
         if not ruta:
             return _ok({"cancelado": True})
         try:
@@ -610,9 +631,3 @@ class Api:
             f.write(f"[{dt.now().isoformat(timespec='seconds')}] {mensaje}\n")
         telemetry.reportar_mensaje(f"JS: {mensaje}")
         return _ok()
-
-
-def _primero(resultado):
-    if isinstance(resultado, (list, tuple)):
-        return resultado[0] if resultado else None
-    return resultado

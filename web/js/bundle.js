@@ -2,47 +2,45 @@
    Fuente: js/api.js, js/components/segmented.js, js/components/glass-select.js, js/components/smart-date-input.js, js/components/smart-time-input.js, js/views/perfil.js, js/views/pases.js, js/views/vacaciones.js, js/views/exportar.js, js/views/festivos.js, js/views/respaldo.js, js/app.js */
 
 /* ---- js/api.js ---- */
-/* Wrapper delgado sobre window.pywebview.api con espera de disponibilidad y
-   manejo uniforme de errores. Toda respuesta del backend viene como
-   {ok, error, data}. */
+/* Wrapper delgado sobre el puente QWebChannel (window.puente, ver
+   app/webchannel_bridge.py) con espera de disponibilidad y manejo uniforme
+   de errores. Toda respuesta del backend viene como {ok, error, data}.
+   Reemplaza al window.pywebview.api de la versión anterior (pywebview) --
+   ver la memoria del proyecto para el porqué del cambio de motor. */
 
 let listo = null;
 
 function apiLista() {
   if (listo) return listo;
   listo = new Promise((resolve) => {
-    if (window.pywebview && window.pywebview.api) { resolve(); return; }
-    let resuelto = false;
-    const terminar = () => {
-      if (resuelto) return;
-      resuelto = true;
-      clearInterval(intervalo);
+    if (window.puente) { resolve(); return; }
+    // qwebchannel.js (qrc:///qtwebchannel/qwebchannel.js, ver index.html)
+    // establece el canal de forma asíncrona -- QWebChannel entrega los
+    // objetos registrados por Python (Puente, ver webchannel_bridge.py) en
+    // este callback.
+    new QWebChannel(qt.webChannelTransport, (canal) => {
+      window.puente = canal.objects.puente;
       resolve();
-    };
-    // El puente pywebview.api se inyecta de forma asíncrona; el evento
-    // "pywebviewready" normalmente lo avisa, pero por si llega antes de que
-    // este listener quede registrado (o no llega), también se sondea.
-    window.addEventListener("pywebviewready", terminar, { once: true });
-    const intervalo = setInterval(() => {
-      if (window.pywebview && window.pywebview.api) terminar();
-    }, 60);
+    });
   });
   return listo;
 }
 
+function _llamarPuente(metodo, argsJson) {
+  // QWebChannel expone los métodos Python vía callback, no como Promise
+  // nativa (la llamada real viaja de forma asíncrona por el canal, nunca
+  // de forma síncrona sobre el hilo de la ventana -- a diferencia del
+  // puente COM de pywebview, aquí no hay forma de que esto bloquee el
+  // hilo de UI esperando el GIL).
+  return new Promise((resolve) => {
+    window.puente.llamar(metodo, argsJson, resolve);
+  });
+}
+
 async function llamar(metodo, ...args) {
   await apiLista();
-  let fn = window.pywebview.api[metodo];
-  // El objeto pywebview.api puede existir un instante antes de que todos sus
-  // métodos queden enlazados (más notorio en el primer arranque, cuando
-  // WebView2 todavía está inicializando su entorno); reintentar en vez de
-  // fallar de una vez. Hasta ~30s de margen para ese arranque en frío.
-  for (let intentos = 0; !fn && intentos < 300; intentos++) {
-    await new Promise((r) => setTimeout(r, 100));
-    fn = window.pywebview.api[metodo];
-  }
-  if (!fn) throw new Error(`Método de API no encontrado: ${metodo}`);
-  const respuesta = await fn(...args);
+  const respuestaJson = await _llamarPuente(metodo, JSON.stringify(args));
+  const respuesta = JSON.parse(respuestaJson);
   if (respuesta && respuesta.ok === false) {
     mostrarToast(respuesta.error || "Ocurrió un error inesperado.", "error");
     throw new Error(respuesta.error || metodo);

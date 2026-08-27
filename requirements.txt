@@ -1,4 +1,4 @@
-pywebview==6.2.1
+PySide6==6.11.2
 pypdf==6.15.0
 reportlab==5.0.0
 sentry-sdk==2.68.1

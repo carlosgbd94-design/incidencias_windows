@@ -10,6 +10,11 @@
      antivirus corporativo; confirmado con timestamps de app/diag.py). Si
      editas cualquier .css/.js fuente, hay que volver a correr ese script. -->
 <link rel="stylesheet" href="css/bundle.css">
+<!-- qrc:///qtwebchannel/qwebchannel.js: recurso interno que Qt registra
+     automáticamente en cuanto el proceso Python importa QtWebChannel (ver
+     app/main.py) -- no es un archivo suelto que haya que copiar a mano.
+     Reemplaza al puente window.pywebview.api de la versión anterior. -->
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 </head>
 <body>
   <div class="mesh-bg"><div class="blob"></div></div>
@@ -111,8 +116,8 @@
     // poder diagnosticar fallas de la interfaz sin herramientas de depuración.
     function _reportarErrorJs(mensaje) {
       const intentar = (restantes) => {
-        if (window.pywebview && window.pywebview.api && window.pywebview.api.registrar_error_js) {
-          window.pywebview.api.registrar_error_js(String(mensaje).slice(0, 2000));
+        if (window.puente) {
+          window.puente.llamar("registrar_error_js", JSON.stringify([String(mensaje).slice(0, 2000)]), () => {});
         } else if (restantes > 0) {
           setTimeout(() => intentar(restantes - 1), 100);
         }

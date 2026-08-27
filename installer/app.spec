@@ -12,15 +12,19 @@ a = Analysis(
         (os.path.join(PROJECT_DIR, "assets"), "assets"),
         (os.path.join(PROJECT_DIR, "web"), "web"),
     ],
-    hiddenimports=["webview.platforms.edgechromium", "webview.platforms.winforms", "clr_loader"],
+    # QtWebEngine no se detecta solo por import estático (PySide6 lo carga
+    # de forma más indirecta) -- el hook oficial de PyInstaller para
+    # PySide6.QtWebEngineWidgets ya trae consigo QtWebEngineProcess.exe,
+    # los .pak de recursos/locales y las DLLs de Chromium necesarias, pero
+    # hace falta declarar el import para que ese hook se dispare.
+    hiddenimports=["PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineCore", "PySide6.QtWebChannel"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     # numpy: PyInstaller lo detecta como dependencia transitiva opcional de
-    # Pillow, pero nada en app/ lo importa nunca en tiempo de ejecución
-    # (confirmado: sys.modules no lo tiene tras importar toda la app). Son
-    # ~7MB de DLLs muertas que además un antivirus corporativo escanea en la
-    # primera instalación sin motivo.
+    # Pillow/reportlab, pero nada en app/ lo importa nunca en tiempo de
+    # ejecución. Son ~7MB de DLLs muertas que además un antivirus
+    # corporativo escanea en la primera instalación sin motivo.
     excludes=["numpy"],
     noarchive=False,
     optimize=0,

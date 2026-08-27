@@ -7,7 +7,7 @@
 ; en el equipo de la dependencia.
 
 #define MyAppName "Control de Pases e Incidencias SESEQ"
-#define MyAppVersion "1.4.17"
+#define MyAppVersion "1.6.0"
 #define MyAppPublisher "SESEQ - Direccion de Recursos Humanos"
 #define MyAppExeName "ControlPasesSESEQ.exe"
 
@@ -52,3 +52,16 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Abrir {#MyAppName}"; Flags: nowait postinstall skipifsilent
+; La actualización automática (ver app/updater.py) instala con /VERYSILENT,
+; que "skipifsilent" de la línea de arriba omite a propósito (para no abrir
+; la app en medio de una instalación manual silenciosa iniciada por otra
+; razón). Pero la actualización automática SÍ debe reabrir la app sola --
+; de ahí esta segunda entrada, que solo corre cuando WizardSilent() es
+; verdadero.
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait; Check: InstalacionSilenciosa
+
+[Code]
+function InstalacionSilenciosa(): Boolean;
+begin
+  Result := WizardSilent;
+end;
