@@ -197,18 +197,21 @@ def _altura_fila(c: pdfcanvas.Canvas, celdas: list, anchos: list[float], alto_mi
     del formato oficial; en ese caso la fila crece en vez de que el texto se
     salga de sus líneas.
 
-    `pad` solo se resta del ANCHO disponible para el wrap (deja aire a los
-    lados, como el LEFTPADDING/RIGHTPADDING reales de la tabla) -- NO se sube
-    a alto_min sumándolo también en vertical: el contenido fijo más largo que
-    ya trae el formato (p.ej. el bloque "Regresa/Hora de salida/Hora de
-    regreso" de 3 líneas) mide más que alto_min con esa suma y sin embargo
-    cabe bien en la fila real, así que sumar pad en vertical disparaba
-    crecimiento de fila incluso cuando no hacía falta."""
+    `pad` se resta del ANCHO disponible para el wrap (deja aire a los lados,
+    como el LEFTPADDING/RIGHTPADDING reales de la tabla) Y TAMBIÉN se suma a
+    la altura del texto ya envuelto (mismo valor: TOPPADDING+BOTTOMPADDING
+    suman igual que LEFTPADDING+RIGHTPADDING en _dibujar_tabla_en, 3+3). Sin
+    esa suma vertical, el bloque fijo "Regresa/Hora de salida/Hora de
+    regreso" (3 líneas, h=28.5) quedaba con menos de 2pt libres dentro de una
+    fila de 30 -- casi nada para repartir entre TOPPADDING y BOTTOMPADDING, y
+    el texto terminaba pegado al borde inferior de la fila (confirmado
+    visualmente, no solo en teoría: se veía crecer hasta la línea divisoria).
+    """
     alto = alto_min
     for celda, ancho in zip(celdas, anchos):
         if isinstance(celda, Paragraph):
             _, h = celda.wrapOn(c, ancho - pad, 1000)
-            alto = max(alto, h)
+            alto = max(alto, h + pad)
     return alto
 
 
