@@ -64,7 +64,7 @@ window.Vistas.exportar = async function (container) {
   });
   const inJefe = document.createElement("input");
   inJefe.className = "glass-input";
-  inJefe.value = "DRA. CLAUDIA ELIZABETH VÁZQUEZ ROBLEDO";
+  inJefe.value = "Dra. Claudia Elizabeth Vázquez Robledo";
   container.querySelector("#exp-jefe").appendChild(inJefe);
 
   function aplicarRango(desde, hasta) {

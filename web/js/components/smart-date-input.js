@@ -97,8 +97,24 @@ function crearCampoFecha(container, { valorInicial = "", onChange = () => {}, pl
         <button type="button" data-nav="1">›</button>
       </div>
       <div class="cal-grid">${celdas}</div>`;
-    pop.querySelector('[data-nav="-1"]').onclick = () => { vistaMes--; if (vistaMes < 0) { vistaMes = 11; vistaAnio--; } renderCalendario(); };
-    pop.querySelector('[data-nav="1"]').onclick = () => { vistaMes++; if (vistaMes > 11) { vistaMes = 0; vistaAnio++; } renderCalendario(); };
+    // e.stopPropagation() es imprescindible aquí: renderCalendario() vuelve
+    // a escribir pop.innerHTML, así que el <button> que se acaba de pulsar
+    // queda desconectado del documento ANTES de que el clic termine de
+    // burbujear. El listener global de "cerrar si el clic fue afuera" (ver
+    // document.addEventListener más abajo) entonces evalúa
+    // wrap.contains(e.target) contra un nodo ya huérfano, que da false
+    // aunque el clic haya sido claramente dentro del calendario -- por eso
+    // el popover se cerraba solo al cambiar de mes.
+    pop.querySelector('[data-nav="-1"]').onclick = (e) => {
+      e.stopPropagation();
+      vistaMes--; if (vistaMes < 0) { vistaMes = 11; vistaAnio--; }
+      renderCalendario();
+    };
+    pop.querySelector('[data-nav="1"]').onclick = (e) => {
+      e.stopPropagation();
+      vistaMes++; if (vistaMes > 11) { vistaMes = 0; vistaAnio++; }
+      renderCalendario();
+    };
     pop.querySelectorAll(".cal-day[data-dia]").forEach((el) => {
       el.onclick = () => {
         const d = parseInt(el.dataset.dia, 10);

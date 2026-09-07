@@ -19,12 +19,21 @@ import sys
 # tenía en la versión anterior: red de fondo, resolución de proxy/WPAD y
 # DNS-over-HTTPS desactivados, ya que esta página es 100% archivos locales
 # (file://) y jamás necesita salir a ninguna red por su cuenta.
+#
+# --disable-gpu* y --disable-software-rasterizer: en equipos con gráficos
+# muy viejos y sin driver propio (ej. Intel Q45/Q43 Express de 2008, que
+# Windows termina cubriendo con el driver genérico "Microsoft Basic Display
+# Adapter" WDDM 1.1) el proceso de GPU de Chromium no logra inicializar y la
+# ventana se queda en blanco para siempre -- nunca llega a dispararse
+# loadFinished. Forzar render por software evita depender de esa GPU.
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
     "--disable-background-networking --disable-component-update "
     "--disable-domain-reliability --disable-client-side-phishing-detection "
     "--disable-sync --no-first-run --no-pings --no-service-autorun "
-    "--no-proxy-server --disable-features=DnsOverHttps,DnsOverHttpsUpgrade --dns-over-https-mode=off"
+    "--no-proxy-server --disable-features=DnsOverHttps,DnsOverHttpsUpgrade --dns-over-https-mode=off "
+    "--disable-gpu --disable-gpu-compositing --disable-software-rasterizer"
 )
+os.environ.setdefault("QT_OPENGL", "software")
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QIcon
