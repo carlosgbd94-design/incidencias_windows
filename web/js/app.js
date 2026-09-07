@@ -63,13 +63,17 @@
           .then((version) => { if (elVersion && version) elVersion.textContent = `Versión ${version}`; })
           .catch(() => {});
         // Estado real de la actualización (no solo el aviso puntual de
-        // updater.py) -- así la insignia refleja la verdad incluso si esta
-        // pestaña conectó después de que ya se encontró la actualización, o
-        // si por lo que sea el aviso puntual no llegó a tiempo.
+        // updater.py) -- así se refleja la verdad incluso si esta pestaña
+        // conectó después de que ya se encontró la actualización, o si por
+        // lo que sea el aviso puntual no llegó a tiempo. Si hay una lista,
+        // el diálogo modal se encarga (nunca el chip pasivo); si no hay
+        // ninguna, el chip confirma que se está al día.
         Api.llamar("actualizacion_lista")
           .then((datos) => {
             if (datos && datos.version) {
-              Api.mostrarBadgeActualizacion(`Actualización ${datos.version} lista — se instala al cerrar`);
+              Api.mostrarDialogoActualizacion(datos.version);
+            } else {
+              Api.mostrarEstadoAlDia();
             }
           })
           .catch(() => {});

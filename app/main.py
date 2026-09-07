@@ -35,7 +35,7 @@ os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
 )
 os.environ.setdefault("QT_OPENGL", "software")
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtGui import QIcon
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
@@ -96,6 +96,10 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(_ANCHO_MINIMO, _ALTO_MINIMO)
         self._maximizada = self.maximizada_al_iniciar
         self._ultimo_tamano = (ancho, alto)
+        # Ver closeEvent(): permite mostrar la transición de "cerrando para
+        # actualizar" antes de dejar que el cierre siga su curso de verdad,
+        # en vez de que la ventana desaparezca de golpe sin avisar nada.
+        self._cierre_confirmado = False
 
         # Perfil propio con rutas en %LOCALAPPDATA% (no %APPDATA% itinerante)
         # -- mismo motivo que storage_path tenía en la versión pywebview: un
@@ -126,8 +130,12 @@ class MainWindow(QMainWindow):
         js = f"window.Api && Api.mostrarToast({json.dumps(mensaje)}, {json.dumps(tipo)})"
         self.pagina.runJavaScript(js)
 
-    def mostrar_badge_actualizacion(self, mensaje: str):
-        js = f"window.Api && Api.mostrarBadgeActualizacion({json.dumps(mensaje)})"
+    def mostrar_dialogo_actualizacion(self, version: str):
+        js = f"window.Api && Api.mostrarDialogoActualizacion({json.dumps(version)})"
+        self.pagina.runJavaScript(js)
+
+    def mostrar_progreso_actualizacion(self, mensaje: str | None = None):
+        js = f"window.Api && Api.mostrarProgresoActualizacion({json.dumps(mensaje)})"
         self.pagina.runJavaScript(js)
 
     def aplicar_preferencia_transparencia(self):
@@ -155,6 +163,22 @@ class MainWindow(QMainWindow):
             pass
 
     def closeEvent(self, event):
+        # Si hay una actualización ya verificada y lista, el cierre real se
+        # pospone una fracción de segundo para que la pantalla de "cerrando
+        # para actualizar" (ver web/css/glass.css .update-overlay) alcance a
+        # pintarse antes de que la ventana desaparezca de verdad -- así el
+        # usuario ve la transición en vez de que la app simplemente se
+        # esfume sin explicación, sea que haya llegado aquí por el botón
+        # "Instalar ahora" del diálogo o por cerrar la ventana normal con una
+        # actualización pendiente ("Después" en el diálogo, ver api.js).
+        # _cierre_confirmado evita un bucle infinito: la segunda vuelta por
+        # aquí (disparada por el QTimer) sí debe seguir su curso.
+        if not self._cierre_confirmado and updater.hay_actualizacion_lista():
+            event.ignore()
+            self._cierre_confirmado = True
+            self.mostrar_progreso_actualizacion("Cerrando para actualizar…")
+            QTimer.singleShot(750, self.close)
+            return
         diag.log("evento closing")
         self.guardar_geometria()
         updater.instalar_al_cerrar()
@@ -196,8 +220,7 @@ def _ejecutar():
     diag.log("MainWindow creada (aún no se muestra ni se carga nada)")
 
     def _avisar_actualizacion_lista(version):
-        ventana.mostrar_toast(f"Nueva versión {version} lista. Se instalará sola al cerrar la app.", "update")
-        ventana.mostrar_badge_actualizacion(f"Actualización {version} lista — se instala al cerrar")
+        ventana.mostrar_dialogo_actualizacion(version)
 
     def _avisar_si_se_actualizo():
         if not version_anterior:

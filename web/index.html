@@ -33,24 +33,45 @@
     <div class="boot-text" id="boot-text">Iniciando…</div>
   </div>
 
-  <!-- Mismo tratamiento visual que boot-overlay, pero para el momento de
-       "se está instalando la actualización" al cerrar manualmente desde el
-       botón -- empieza oculto. No se usa la ventana del instalador de Inno
-       Setup para esto (ver app/updater.py): mostrar nuestra propia interfaz
-       antes de cerrar da una transición coherente en vez de dos ventanas
-       distintas apareciendo una junto a la otra. -->
-  <div id="update-overlay" class="boot-overlay oculto">
-    <svg class="boot-logo" viewBox="0 0 256 256" aria-hidden="true">
-      <path d="M128 8 C 216 8 248 40 248 128 C 248 216 216 248 128 248 C 40 248 8 216 8 128 C 8 40 40 8 128 8 Z" fill="#4C6FFF"/>
-      <circle cx="122" cy="118" r="62" fill="none" stroke="#FFFFFF" stroke-width="16"/>
-      <path d="M156 152 L196 192 M196 192 L196 168 M196 192 L172 192" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M122 88 L122 122 L146 138" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Pantalla de transición para "se está cerrando para instalar la
+       actualización" -- deliberadamente distinta de boot-overlay (fondo con
+       lavado de acento, ícono de actualización, no el logo/spinner neutros
+       del arranque) para que no se confunda con "la app está cargando".
+       Empieza oculta. No se usa la ventana del instalador de Inno Setup para
+       esto (ver app/updater.py): mostrar nuestra propia interfaz antes de
+       cerrar da una transición coherente en vez de dos ventanas distintas
+       apareciendo una junto a la otra. Solo puede cubrir el tramo que
+       alcanza a verse ANTES de que esta ventana se cierre de verdad (el
+       instalador corre ya sin esta interfaz) -- el texto de abajo se hace
+       cargo de dejar claro qué va a pasar después, en vez de fingir un
+       progreso que no se puede medir desde aquí. -->
+  <div id="update-overlay" class="update-overlay oculto">
+    <div class="update-overlay-icon">
+      <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/></svg>
+    </div>
+    <svg class="update-overlay-spinner" viewBox="0 0 44 44" aria-hidden="true">
+      <circle class="update-overlay-spinner-track" cx="22" cy="22" r="18" fill="none"></circle>
+      <circle class="update-overlay-spinner-fill" cx="22" cy="22" r="18" fill="none"></circle>
     </svg>
-    <svg class="boot-spinner" viewBox="0 0 44 44" aria-hidden="true">
-      <circle class="boot-spinner-track" cx="22" cy="22" r="18" fill="none"></circle>
-      <circle class="boot-spinner-fill" cx="22" cy="22" r="18" fill="none"></circle>
-    </svg>
-    <div class="boot-text">Instalando actualización…</div>
+    <div class="update-overlay-text" id="update-overlay-texto">Cerrando para actualizar…</div>
+    <div class="update-overlay-subtext">La aplicación se instalará y volverá a abrirse sola en un momento.</div>
+  </div>
+
+  <!-- Diálogo modal: aparece en cuanto hay una actualización descargada y
+       verificada, en vez del chip pasivo de antes -- el usuario decide el
+       momento (Instalar ahora / Después), nunca se fuerza. -->
+  <div id="update-dialog-overlay" class="update-dialog-overlay oculto">
+    <div class="update-dialog glass-card">
+      <div class="update-dialog-icon">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/></svg>
+      </div>
+      <h3 class="update-dialog-title">Actualización disponible</h3>
+      <p class="update-dialog-texto" id="update-dialog-texto">Hay una nueva versión lista para instalar.</p>
+      <div class="update-dialog-acciones">
+        <button type="button" class="btn btn-ghost" id="update-dialog-despues">Después</button>
+        <button type="button" class="btn btn-primary" id="update-dialog-instalar">Instalar ahora</button>
+      </div>
+    </div>
   </div>
 
   <div class="app-shell">
@@ -98,10 +119,15 @@
         SESEQ · Jurisdicción Sanitaria<br>Tus datos se guardan localmente.<br>
         <span id="app-version">Versión —</span>
       </div>
-      <button type="button" id="update-badge" class="update-badge" hidden title="Clic para actualizar ahora, sin esperar a cerrar la app">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/></svg>
-        <span id="update-badge-texto">Actualización lista</span>
-      </button>
+      <!-- Indicador pasivo de "no hay nada pendiente" -- NO es un botón ni
+           es clicable: cuando SÍ hay una actualización lista para instalar,
+           eso se avisa aparte con un diálogo (ver #update-dialog-overlay),
+           nunca con este chip, para no mezclar dos significados opuestos en
+           el mismo elemento. -->
+      <div id="update-badge" class="update-badge" hidden>
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span id="update-badge-texto">Tienes la última versión</span>
+      </div>
     </nav>
 
     <main class="content-area" id="content-area">

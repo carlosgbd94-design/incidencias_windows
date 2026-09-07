@@ -62,6 +62,68 @@
 @keyframes boot-spin { to { transform: rotate(360deg); } }
 .boot-text { font-size: 13px; font-weight: 600; color: var(--text-secondary); letter-spacing: -.01em; }
 
+/* ---------- Transición de actualización ----------
+   A propósito NO comparte clases con .boot-overlay: aunque la estructura se
+   parece (overlay + spinner + texto), deben poder evolucionar por separado y
+   sobre todo deben distinguirse a simple vista -- fondo con lavado de acento
+   en vez del fondo neutro del arranque, para que quede claro que "esto es
+   distinto a que la app esté cargando". */
+.update-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-3);
+  background:
+    radial-gradient(ellipse 900px 600px at 50% 30%, rgba(0,122,255,.16), transparent 65%),
+    var(--bg-0);
+  transition: opacity .3s var(--ease-out);
+  text-align: center; padding: 0 var(--space-6);
+}
+.update-overlay.oculto { opacity: 0; pointer-events: none; }
+.update-overlay-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,122,255,.16); color: var(--accent-1);
+  animation: update-overlay-pulse 1.6s var(--ease-out) infinite;
+}
+@keyframes update-overlay-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+.update-overlay-spinner { width: 26px; height: 26px; animation: boot-spin 1s linear infinite; margin-top: 2px; }
+.update-overlay-spinner-track, .update-overlay-spinner-fill { fill: none; stroke-width: 3.5; }
+.update-overlay-spinner-track { stroke: var(--track-bg); }
+.update-overlay-spinner-fill {
+  stroke: var(--accent-1); stroke-linecap: round;
+  stroke-dasharray: 113; stroke-dashoffset: 85;
+}
+.update-overlay-text { font-size: 15px; font-weight: 700; color: var(--text-primary); letter-spacing: -.01em; }
+.update-overlay-subtext { font-size: 12.5px; color: var(--text-secondary); max-width: 320px; line-height: 1.5; }
+
+/* ---------- Diálogo de "actualización disponible" ----------
+   Reemplaza al chip pasivo + toast de antes para este caso puntual: el
+   usuario decide el momento (Instalar ahora / Después), nunca se instala a
+   la fuerza mientras trabaja. */
+.update-dialog-overlay {
+  position: fixed; inset: 0; z-index: 550;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.28);
+  opacity: 1; transition: opacity .2s var(--ease-out);
+}
+.update-dialog-overlay.oculto { opacity: 0; pointer-events: none; }
+.update-dialog {
+  width: min(400px, calc(100% - 48px));
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 4px; padding: var(--space-6) var(--space-5) var(--space-5);
+  animation: update-dialog-in .3s var(--ease-spring);
+}
+@keyframes update-dialog-in { from { opacity: 0; transform: scale(.94) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.update-dialog-icon {
+  width: 48px; height: 48px; border-radius: 50%; margin-bottom: var(--space-2);
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,122,255,.16); color: var(--accent-1);
+}
+.update-dialog-title { font-size: 16.5px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+.update-dialog-texto { font-size: 13.5px; color: var(--text-secondary); line-height: 1.5; margin: 2px 0 var(--space-4); }
+.update-dialog-acciones { display: flex; gap: var(--space-3); width: 100%; }
+.update-dialog-acciones .btn { flex: 1; }
+
 /* ---------- Layout raíz ---------- */
 .app-shell { display: flex; height: 100vh; padding: var(--space-4); gap: var(--space-4); }
 .sidebar {
@@ -75,29 +137,26 @@
   flex-direction: column;
   padding: var(--space-5) var(--space-3);
 }
-/* Insignia persistente de "actualización lista" -- a diferencia del toast
-   (que desaparece solo), esto se queda visible en el pie del menú durante
-   toda la sesión, como hacen Chrome/VSCode, para que descubrir que hay una
-   actualización pendiente no dependa de haber visto el toast a tiempo. Es un
-   <button> real (clic = actualizar ahora, sin esperar a cerrar la app), así
-   que se le resetean los estilos por defecto de botón. */
+/* Indicador pasivo de "estás al día" -- a propósito NO es interactivo (no es
+   un <button>, no tiene hover/click): cuando SÍ hay algo que instalar, eso lo
+   dice el diálogo modal (#update-dialog-overlay), nunca este chip, para no
+   mezclar "todo en orden" con "hay una acción pendiente" en el mismo
+   elemento (justo la confusión que tenía la versión anterior). Tono
+   neutro/success en vez del azul de acento, que aquí se reserva para
+   "hay algo que requiere tu atención". */
+.update-badge[hidden] { display: none; }
 .update-badge {
   display: flex; align-items: center; gap: 6px;
   width: calc(100% - 24px);
   margin: 8px 12px 0; padding: 7px 10px;
   border-radius: var(--radius-sm);
-  background: rgba(0,122,255,.12);
-  border: 1px solid rgba(0,122,255,.22);
-  color: var(--accent-1);
-  font: inherit; font-size: 11px; font-weight: 700;
-  text-align: left; cursor: pointer;
+  background: rgba(52,199,89,.1);
+  border: 1px solid rgba(52,199,89,.2);
+  color: var(--text-secondary);
+  font-size: 11px; font-weight: 600;
   animation: update-badge-in .3s var(--ease-spring);
-  transition: background .15s var(--ease-out), transform .1s var(--ease-out);
 }
-.update-badge:hover { background: rgba(0,122,255,.2); }
-.update-badge:active { transform: scale(.97); }
-.update-badge:disabled { cursor: default; opacity: .7; }
-.update-badge svg { flex-shrink: 0; }
+.update-badge svg { flex-shrink: 0; color: var(--success); }
 @keyframes update-badge-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 .brand { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-3) var(--space-5); }
@@ -314,21 +373,27 @@
 .progress-fill.danger { background: var(--danger); }
 
 /* ---------- Toast ----------
-   Rediseño: tarjeta de ancho fijo (se veía "genérica" cuando el ancho
-   variaba con el texto), botón de cerrar que aparece al pasar el mouse,
-   y una barra de progreso delgada abajo que cuenta el tiempo restante --
-   se detiene si el mouse está encima (igual que las notificaciones nativas
-   de Windows/macOS), para que no se cierre sola mientras la estás leyendo. */
-#toast-host { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 10px; z-index: 100; }
+   Banner ancho arriba al centro (antes: tarjeta chica abajo a la derecha,
+   que se perdía fácil contra el fondo) -- es lo primero que se mira al
+   entrar a la ventana, y a este ancho no se puede confundir con un elemento
+   más de la interfaz. Conserva botón de cerrar al pasar el mouse y la barra
+   de progreso delgada abajo que cuenta el tiempo restante -- se detiene si
+   el mouse está encima (igual que las notificaciones nativas de Windows/
+   macOS), para que no se cierre sola mientras la estás leyendo. */
+#toast-host {
+  position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  z-index: 700; width: min(620px, calc(100% - 56px));
+}
 .toast {
   position: relative;
-  display: flex; align-items: flex-start; gap: 11px;
-  padding: 14px 32px 15px 14px;
-  border-radius: var(--radius-md); font-size: 13.5px; font-weight: 500;
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 15px 34px 16px 16px;
+  border-radius: var(--radius-md); font-size: 14px; font-weight: 500;
   background: var(--glass-bg-strong);
   border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow);
   animation: toast-in .3s var(--ease-spring);
-  width: 320px;
+  width: 100%;
   color: var(--text-primary);
   overflow: hidden;
 }
@@ -372,19 +437,20 @@
 .toast.update {
   border: 1px solid rgba(0,122,255,.35); border-left: 4px solid var(--accent-1);
   box-shadow: var(--glass-shadow), 0 0 0 1px rgba(0,122,255,.06);
-  width: 360px;
   animation: toast-in-update .4s var(--ease-spring);
 }
 .toast.update .toast-icon { color: var(--accent-1); background: rgba(0,122,255,.16); }
 .toast.update .toast-msg { font-weight: 600; }
 .toast.update .toast-progreso { color: var(--accent-1); }
 
-@keyframes toast-in { from { opacity: 0; transform: translateX(26px) scale(.96); } to { opacity: 1; transform: translateX(0) scale(1); } }
-@keyframes toast-out { to { opacity: 0; transform: translateX(26px) scale(.96); } }
+/* Entra deslizándose desde arriba (antes: desde la derecha, cuando el host
+   vivía abajo-derecha) -- coherente con la nueva posición del banner. */
+@keyframes toast-in { from { opacity: 0; transform: translateY(-18px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-18px) scale(.97); } }
 @keyframes toast-in-update {
-  0% { opacity: 0; transform: translateX(30px) scale(.92); }
-  55% { opacity: 1; transform: translateX(-4px) scale(1.02); }
-  100% { transform: translateX(0) scale(1); }
+  0% { opacity: 0; transform: translateY(-22px) scale(.94); }
+  55% { opacity: 1; transform: translateY(3px) scale(1.015); }
+  100% { transform: translateY(0) scale(1); }
 }
 
 /* ---------- Anillo de progreso + tarjetas de estadística ---------- */

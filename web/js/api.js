@@ -161,40 +161,74 @@ function mostrarToast(mensaje, tipo = "success") {
   requestAnimationFrame(() => requestAnimationFrame(iniciarCuenta));
 }
 
-let _badgeClicListo = false;
-
-function mostrarBadgeActualizacion(mensaje) {
+// Chip pasivo "Tienes la última versión" -- nunca se usa para avisar que hay
+// algo pendiente (eso es trabajo de mostrarDialogoActualizacion). No es
+// interactivo, así que no necesita ningún listener.
+function mostrarEstadoAlDia() {
   const badge = document.getElementById("update-badge");
-  const texto = document.getElementById("update-badge-texto");
-  if (!badge || !texto) return;
-  texto.textContent = mensaje;
+  if (!badge) return;
   badge.hidden = false;
+}
 
-  // El listener se engancha una sola vez (mostrarBadgeActualizacion puede
-  // llamarse más de una vez en la misma sesión: al conectar el puente y de
-  // nuevo si updater.py encuentra la actualización un poco después).
-  if (_badgeClicListo) return;
-  _badgeClicListo = true;
-  badge.addEventListener("click", async () => {
-    const overlay = document.getElementById("update-overlay");
-    const textoOriginal = texto.textContent;
-    badge.disabled = true;
-    texto.textContent = "Actualizando…";
-    // Se muestra la pantalla de "instalando" y se espera un instante ANTES
-    // de pedirle a Python que cierre la ventana -- así el usuario alcanza a
-    // ver la transición con nuestro propio diseño, en vez de que la ventana
-    // desaparezca de golpe apenas se hace clic.
-    if (overlay) overlay.classList.remove("oculto");
-    await new Promise((r) => setTimeout(r, 900));
+function mostrarProgresoActualizacion(texto) {
+  const overlay = document.getElementById("update-overlay");
+  const textoEl = document.getElementById("update-overlay-texto");
+  if (!overlay) return;
+  if (texto && textoEl) textoEl.textContent = texto;
+  overlay.classList.remove("oculto");
+}
+
+function ocultarProgresoActualizacion() {
+  const overlay = document.getElementById("update-overlay");
+  if (overlay) overlay.classList.add("oculto");
+}
+
+let _versionDialogoMostrado = null;
+
+// Diálogo modal "hay una actualización lista": el usuario decide el momento
+// (Instalar ahora / Después), nunca se instala mientras trabaja sin
+// avisarle. Puede llamarse más de una vez en la misma sesión (una vez al
+// conectar el puente y otra si updater.py encuentra la actualización un poco
+// después) -- si ya se mostró para esta misma versión, no hace nada de nuevo.
+function mostrarDialogoActualizacion(version) {
+  if (_versionDialogoMostrado === version) return;
+  _versionDialogoMostrado = version;
+
+  const overlay = document.getElementById("update-dialog-overlay");
+  const texto = document.getElementById("update-dialog-texto");
+  let btnInstalar = document.getElementById("update-dialog-instalar");
+  let btnDespues = document.getElementById("update-dialog-despues");
+  if (!overlay || !texto || !btnInstalar || !btnDespues) return;
+
+  texto.textContent = `Hay una nueva versión (${version}) lista para instalar.`;
+
+  // Clona y reemplaza los botones para partir de cero sin listeners
+  // acumulados, en vez de llevar la cuenta de si ya se engancharon antes.
+  btnInstalar = btnInstalar.cloneNode(true);
+  document.getElementById("update-dialog-instalar").replaceWith(btnInstalar);
+  btnDespues = btnDespues.cloneNode(true);
+  document.getElementById("update-dialog-despues").replaceWith(btnDespues);
+
+  overlay.classList.remove("oculto");
+  reproducirSonido("update");
+
+  btnDespues.addEventListener("click", () => {
+    overlay.classList.add("oculto");
+  });
+  btnInstalar.addEventListener("click", async () => {
+    btnInstalar.disabled = true;
+    btnDespues.disabled = true;
+    overlay.classList.add("oculto");
+    mostrarProgresoActualizacion();
     try {
-      // Si funciona, la ventana se cierra sola desde Python (dispara el
-      // cierre normal, que instala y sale) -- no hay nada más que hacer
-      // aquí en el caso exitoso.
+      // Si funciona, Python cierra la ventana (dispara el cierre normal, que
+      // instala y sale) -- no hay nada más que hacer aquí en el caso exitoso.
       await llamar("actualizar_ahora");
     } catch (e) {
-      if (overlay) overlay.classList.add("oculto");
-      badge.disabled = false;
-      texto.textContent = textoOriginal;
+      ocultarProgresoActualizacion();
+      btnInstalar.disabled = false;
+      btnDespues.disabled = false;
+      overlay.classList.remove("oculto");
     }
   });
 }
@@ -209,4 +243,8 @@ function mostrarErrorVista(container, mensaje) {
   container.querySelector("#btn-reintentar").onclick = () => location.reload();
 }
 
-window.Api = { llamar, mostrarToast, mostrarErrorVista, mostrarBadgeActualizacion };
+window.Api = {
+  llamar, mostrarToast, mostrarErrorVista,
+  mostrarEstadoAlDia, mostrarDialogoActualizacion,
+  mostrarProgresoActualizacion, ocultarProgresoActualizacion,
+};
