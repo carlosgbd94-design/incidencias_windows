@@ -7,7 +7,7 @@
 ; en el equipo de la dependencia.
 
 #define MyAppName "Control de Pases e Incidencias SESEQ"
-#define MyAppVersion "1.7.0"
+#define MyAppVersion "1.7.1"
 #define MyAppPublisher "SESEQ - Direccion de Recursos Humanos"
 #define MyAppExeName "ControlPasesSESEQ.exe"
 
@@ -44,6 +44,11 @@ Name: "desktopicon"; Description: "Crear un acceso directo en el Escritorio"; Gr
 ; onedir: PyInstaller deja el .exe junto a una carpeta _internal\ con todas
 ; las DLLs/datos. Hay que copiar la carpeta completa, no solo el .exe.
 Source: "..\dist\ControlPasesSESEQ\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Proceso auxiliar de actualización (ver app/update_helper.py y
+; app/updater.py) -- en subcarpeta propia porque, al actualizar, la app lo
+; copia entero fuera de {app} antes de lanzarlo (así Inno Setup puede
+; reemplazar esta carpeta sin chocar con el helper corriendo desde dentro).
+Source: "..\dist\ControlPasesSESEQ_UpdateHelper\*"; DestDir: "{app}\updater"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

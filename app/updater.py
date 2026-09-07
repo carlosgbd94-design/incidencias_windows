@@ -22,13 +22,23 @@ instalador verificado de una sesión anterior y, si lo hay, se lanza de una
 vez -- así una máquina que se quedó colgada se autorepara la próxima vez que
 alguien vuelva a abrir la app, sin depender de que el cierre haya sido
 "limpio".
+
+La instalación real la corre un proceso auxiliar aparte (ver
+app/update_helper.py y _lanzar_con_ventana_de_progreso() más abajo), no esta
+app directamente: como esta app tiene que cerrarse del todo antes de que el
+instalador pueda reemplazar sus propios archivos, no hay forma de que SU
+ventana muestre progreso durante ese tramo -- el helper, independiente y sin
+esa restricción, sí puede.
 """
 import hashlib
 import json
 import os
+import shutil
 import subprocess
+import sys
 import threading
 import urllib.request
+from pathlib import Path
 
 from app import diag
 from app.database import get_data_dir
@@ -181,16 +191,6 @@ def hay_actualizacion_lista() -> dict | None:
 def _lanzar_instalador_silencioso(ruta: str) -> None:
     try:
         subprocess.Popen(
-            # /VERYSILENT (no /SILENT): se probó mostrar la ventana de
-            # progreso de Inno Setup y salió mal -- como nuestra propia
-            # ventana ya se está cerrando al mismo tiempo que esa ventana
-            # aparece, y además /CLOSEAPPLICATIONS a veces necesita su propio
-            # aviso de "cerrando aplicaciones", el usuario terminaba viendo
-            # dos ventanas descoordinadas en vez de una transición limpia.
-            # La confirmación visual de que se está actualizando ahora la da
-            # nuestra propia interfaz (ver Api.actualizar_ahora en api.py,
-            # que muestra un aviso con nuestro propio diseño ANTES de cerrar
-            # la ventana), no la ventana genérica del instalador.
             [ruta, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
             close_fds=True,
@@ -199,21 +199,72 @@ def _lanzar_instalador_silencioso(ruta: str) -> None:
         pass
 
 
+def _ruta_exe_actual() -> Path:
+    return Path(sys.executable).resolve()
+
+
+def _ruta_helper_empaquetado() -> Path:
+    """El helper (ver app/update_helper.py) se instala junto a la app
+    principal, en una subcarpeta propia -- ver [Files] en installer/setup.iss.
+    No existe en modo desarrollo (sys.executable es python.exe, no el .exe
+    empaquetado) ni en una instalación de antes de que este mecanismo
+    existiera; en ambos casos _lanzar_con_ventana_de_progreso() debe fallar
+    limpio y dejar que el llamador recurra al método antiguo."""
+    return _ruta_exe_actual().parent / "updater" / "ControlPasesSESEQ_UpdateHelper.exe"
+
+
+def _ruta_helper_copia() -> Path:
+    return get_data_dir() / "actualizaciones" / "helper" / "ControlPasesSESEQ_UpdateHelper.exe"
+
+
+def _lanzar_con_ventana_de_progreso(ruta_instalador: str) -> bool:
+    """Copia el helper empaquetado fuera de la carpeta de instalación antes
+    de lanzarlo -- si se lanzara desde ahí mismo, Inno Setup no podría
+    reemplazar esa carpeta mientras el propio helper sigue corriendo desde
+    dentro de ella (el mismo problema de archivo bloqueado que esta función
+    existe para evitar, solo que del lado del helper). Una vez lanzado, ese
+    proceso -ya totalmente independiente de esta app y de su carpeta de
+    instalación- espera a que esta app termine de cerrar y corre el
+    instalador con SU PROPIA ventana de progreso visible (el instalador
+    mismo se encarga de reabrir la app al terminar, ver [Run] en
+    installer/setup.iss). Devuelve False (sin lanzar nada) si el helper no
+    está disponible, para que el llamador recurra al método antiguo
+    (silencioso, sin ventana propia) en vez de no instalar nada."""
+    origen = _ruta_helper_empaquetado()
+    if not origen.exists():
+        return False
+    try:
+        destino = _ruta_helper_copia()
+        if destino.parent.exists():
+            shutil.rmtree(destino.parent, ignore_errors=True)
+        shutil.copytree(origen.parent, destino.parent)
+        subprocess.Popen(
+            [str(destino), "--installer", ruta_instalador, "--wait-pid", str(os.getpid())],
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+            close_fds=True,
+        )
+        return True
+    except Exception:
+        return False
+
+
 def instalar_al_cerrar() -> None:
-    """Lanza el instalador ya verificado y sin esperar a que termine (la app
-    está a punto de cerrarse). Se llama tanto desde el handler del evento de
-    cierre de la ventana como desde el botón "Actualizar ahora" (ver
-    Api.actualizar_ahora) -- por eso limpia _instalador_listo después de
-    lanzarlo: si se llama dos veces (botón manual + el cierre normal que
-    dispara igual, ya que el botón cierra la ventana) la segunda vez no debe
-    relanzar el instalador otra vez.
+    """Lanza la instalación del actualizador ya verificado (la app está a
+    punto de cerrarse, no se espera a que termine). Se llama tanto desde el
+    handler del evento de cierre de la ventana como desde el botón "Instalar
+    ahora" (ver Api.actualizar_ahora, que cierra la ventana y dispara el
+    mismo evento) -- por eso limpia _instalador_listo después de lanzarlo: si
+    se llama dos veces, la segunda no debe relanzar nada otra vez.
     """
     ruta = _instalador_listo["ruta"]
     if not ruta:
         diag.log("updater: instalar_al_cerrar() llamado pero no hay nada listo -> no hace nada")
         return
     diag.log(f"updater: lanzando instalador ({ruta})")
-    _lanzar_instalador_silencioso(ruta)
+    if not _lanzar_con_ventana_de_progreso(ruta):
+        diag.log("updater: helper de actualización no disponible (¿modo desarrollo, o versión anterior "
+                  "a que existiera?) -> instala directo, sin ventana de progreso propia")
+        _lanzar_instalador_silencioso(ruta)
     _instalador_listo["ruta"] = None
     _instalador_listo["version"] = None
 
