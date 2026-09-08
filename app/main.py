@@ -35,7 +35,7 @@ os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
 )
 os.environ.setdefault("QT_OPENGL", "software")
 
-from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtCore import QTimer, QUrl, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
@@ -84,6 +84,15 @@ class MainWindow(QMainWindow):
     igual que en la versión pywebview, para poder comparar ambos archivos
     lado a lado sin que la reestructuración esconda ningún paso."""
 
+    # updater.iniciar_revision_en_segundo_plano() corre en un hilo aparte
+    # (threading.Thread, no el hilo de Qt) -- su callback NUNCA debe llamar
+    # self.pagina.runJavaScript(...) directo desde ahí: se probó y de verdad
+    # revienta QtWebEngine (crash real confirmado con el Visor de eventos de
+    # Windows, APPCRASH en Qt6WebEngineCore.dll, no una sospecha teórica).
+    # Esta señal sí es segura -- Qt la encola sola al hilo correcto (el de
+    # esta ventana) porque el emisor y el receptor están en hilos distintos.
+    actualizacion_encontrada = Signal(str)
+
     def __init__(self, backend: Backend):
         super().__init__()
         self.setWindowTitle("Control de Pases e Incidencias - SESEQ")
@@ -119,6 +128,8 @@ class MainWindow(QMainWindow):
         self._puente = Puente(backend)
         self._canal.registerObject("puente", self._puente)
         self.pagina.setWebChannel(self._canal)
+
+        self.actualizacion_encontrada.connect(self.mostrar_dialogo_actualizacion)
 
         backend.cierre_solicitado.connect(self.close)
 
@@ -220,7 +231,11 @@ def _ejecutar():
     diag.log("MainWindow creada (aún no se muestra ni se carga nada)")
 
     def _avisar_actualizacion_lista(version):
-        ventana.mostrar_dialogo_actualizacion(version)
+        # Este callback corre en el hilo de fondo del updater (threading.Thread),
+        # NUNCA en el hilo de Qt -- emitir la señal (no llamar el método
+        # directo) es lo que hace que Qt la encole al hilo correcto. Ver la
+        # nota junto a MainWindow.actualizacion_encontrada.
+        ventana.actualizacion_encontrada.emit(version)
 
     def _avisar_si_se_actualizo():
         if not version_anterior:
