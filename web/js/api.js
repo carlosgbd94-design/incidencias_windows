@@ -200,6 +200,13 @@ function mostrarDialogoActualizacion(version) {
   let btnDespues = document.getElementById("update-dialog-despues");
   if (!overlay || !texto || !btnInstalar || !btnDespues) return;
 
+  // El chip "Tienes la última versión" pudo haberse mostrado ya al conectar
+  // (actualizacion_lista() en ese momento no sabía nada todavía) -- si ahora
+  // SÍ hay una actualización real, ese chip queda desactualizado y
+  // contradice al diálogo (confirmado en vivo: ambos se veían a la vez).
+  const badge = document.getElementById("update-badge");
+  if (badge) badge.hidden = true;
+
   texto.textContent = `Hay una nueva versión (${version}) lista para instalar.`;
 
   // Clona y reemplaza los botones para partir de cero sin listeners
