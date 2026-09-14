@@ -599,7 +599,12 @@ def generar_pdf_vacaciones(perfil: dict, periodos_por_tipo: dict, dia_especial: 
     if tipo_dia == "Santoral":
         c.setFont("Helvetica-Bold", 10)
         c.drawCentredString(382.2, Y(y_cursor + 9), "X")
-    y_cursor += 5.3
+    # 12.5: alto real de esta fila de casillas (mismo valor usado arriba para
+    # las cajas de *Cumpleaños/*Santoral) -- faltaba avanzar el cursor más
+    # allá de esa fila antes de sumarle el espaciado (5.3) hacia la
+    # siguiente, así que el borde superior de "Fecha (día que corresponde)"
+    # quedaba montado sobre "*Cumpleaños"/"*Santoral".
+    y_cursor += 12.5 + 5.3
 
     fecha_corresponde = perfil.get("fecha_dia_especial") or "-"
     if dia_especial and dia_especial.get("aplico"):

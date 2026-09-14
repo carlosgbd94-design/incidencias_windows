@@ -40,13 +40,30 @@ def _fail(mensaje: str):
 def _reportar_si_falla(metodo):
     """Envuelve un método para que un bug real (excepción no prevista,
     distinta de los _fail() deliberados de validación) quede reportado a la
-    telemetría en vez de romper la vista en silencio."""
+    telemetría en vez de romper la vista en silencio.
+
+    Además del reporte a Sentry (que solo se puede consultar desde el
+    dashboard), el traceback completo se agrega a debug.log en la carpeta de
+    datos local (mismo archivo/formato que registrar_error_js) -- así, en
+    esta misma máquina, se puede diagnosticar un fallo leyendo el archivo
+    directamente en vez de depender de tener acceso a Sentry."""
     @functools.wraps(metodo)
     def envoltura(self, *args, **kwargs):
         try:
             return metodo(self, *args, **kwargs)
         except Exception as e:
             telemetry.reportar(e)
+            try:
+                import traceback
+                from datetime import datetime as dt
+                from app.database import get_data_dir
+                log_path = get_data_dir() / "debug.log"
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(f"[{dt.now().isoformat(timespec='seconds')}] {metodo.__name__}{args!r}\n")
+                    f.write(traceback.format_exc())
+                    f.write("\n")
+            except Exception:
+                pass
             return _fail("Ocurrió un error inesperado. Ya quedó registrado para revisión.")
     return envoltura
 
