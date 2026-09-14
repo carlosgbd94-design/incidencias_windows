@@ -446,11 +446,15 @@ def _dibujar_fila_dia_especial(c: pdfcanvas.Canvas, etiqueta: str, valor_texto: 
     dia_mes = _valor_dia_mes(valor_texto)
     if dia_mes:
         c.setFont("Helvetica", 10)
-        c.drawCentredString((dx0 + dx1) / 2, Y(y1_split + 5.2), dia_mes[0])
-        c.drawCentredString((mx0 + mx1) / 2, Y(y1_split + 5.2), dia_mes[1])
+        # y1_split es la línea que separa la casilla de arriba (día/mes) de
+        # la leyenda de abajo ("Día"/"Mes") -- el texto debe quedar DENTRO de
+        # la casilla de arriba (restando a y1_split, no sumando), si no cae
+        # encimado con la línea divisoria y con la leyenda de abajo.
+        c.drawCentredString((dx0 + dx1) / 2, Y(y1_split - 5.2), dia_mes[0])
+        c.drawCentredString((mx0 + mx1) / 2, Y(y1_split - 5.2), dia_mes[1])
     elif valor_texto:
         c.setFont("Helvetica", 7.5)
-        c.drawCentredString((dx0 + mx1) / 2, Y(y1_split + 5.2), valor_texto)
+        c.drawCentredString((dx0 + mx1) / 2, Y(y1_split - 5.2), valor_texto)
     c.setFont("Helvetica", 8)
     c.drawCentredString((dx0 + dx1) / 2, Y(y1 + 3.1), "Día")
     c.drawCentredString((mx0 + mx1) / 2, Y(y1 + 3.1), "Mes")

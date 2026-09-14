@@ -537,7 +537,13 @@ class Backend(QObject):
         abrir_pdf(ruta)
         return _ok({"ruta": ruta})
 
-    def exportar_vacaciones(self, anio, jefe_nombre, incluir_exportados):
+    def exportar_vacaciones(self, anio, jefe_nombre, ids_periodos, id_dia_especial):
+        """A diferencia de exportar_pases() (que exporta todo un rango de
+        fechas), aquí el usuario elige a mano cuáles periodos entran al PDF
+        (ids_periodos) y si incluye o no la solicitud de día especial
+        (id_dia_especial) -- alguien puede tener, p.ej., su primer periodo
+        fraccionado en dos y solo querer exportar el fragmento que falta por
+        tomar, no el que ya tomó y ya exportó antes."""
         from app.pdf_export import abrir_pdf, generar_pdf_vacaciones
         if not (jefe_nombre or "").strip():
             return _fail("Ingresa el nombre y firma del jefe inmediato.")
@@ -545,21 +551,30 @@ class Backend(QObject):
         if not perfil["setup_completo"]:
             return _fail("Completa tu Perfil antes de exportar.")
         anio = int(anio)
-        clausula = "" if incluir_exportados else "AND exportado=0"
-        filas = [dict(r) for r in self.conn.execute(
-            f"SELECT * FROM periodos_vacacionales WHERE anio=? {clausula} ORDER BY tipo, fecha_inicio", (anio,),
-        ).fetchall()]
+        ids_periodos = [int(i) for i in (ids_periodos or [])]
+        if not ids_periodos and not id_dia_especial:
+            return _fail("Selecciona al menos un periodo o el día especial para exportar.")
+
+        filas = []
+        if ids_periodos:
+            marcadores = ",".join("?" * len(ids_periodos))
+            filas = [dict(r) for r in self.conn.execute(
+                f"SELECT * FROM periodos_vacacionales WHERE anio=? AND id IN ({marcadores}) "
+                "ORDER BY tipo, fecha_inicio", (anio, *ids_periodos),
+            ).fetchall()]
         periodos_por_tipo = {t: [] for t in ORDEN_TIPOS}
         for f in filas:
             periodos_por_tipo[f["tipo"]].append(f)
 
-        registro_dia = self.conn.execute(
-            f"SELECT * FROM dias_especiales_otorgados WHERE anio=? {clausula}", (anio,),
-        ).fetchone()
-        dia_especial = dict(registro_dia) if registro_dia else None
+        dia_especial = None
+        if id_dia_especial:
+            registro_dia = self.conn.execute(
+                "SELECT * FROM dias_especiales_otorgados WHERE anio=? AND id=?", (anio, int(id_dia_especial)),
+            ).fetchone()
+            dia_especial = dict(registro_dia) if registro_dia else None
 
         if not filas and not dia_especial:
-            return _fail("No hay periodos vacacionales pendientes por exportar en ese año.")
+            return _fail("Los periodos seleccionados ya no existen.")
 
         nombre_sugerido = f"Vacaciones_{perfil['no_empleado']}_{anio}.pdf"
         ruta, _filtro = QFileDialog.getSaveFileName(

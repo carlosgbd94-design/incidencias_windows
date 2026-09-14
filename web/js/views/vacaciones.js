@@ -19,8 +19,7 @@ window.Vistas.vacaciones = async function (container) {
     </div>
     <div style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:18px;">
       <div style="width:120px;"><label class="field-label">Año</label><div id="sel-anio-vac"></div></div>
-      <div style="flex:1; min-width:220px;"><label class="field-label">Autorización Nombre y Firma Jefe Inmediato</label><div id="vac-jefe"></div></div>
-      <button class="btn btn-primary" id="vac-exportar">Exportar PDF de ${anio}</button>
+      <button class="btn btn-primary" id="vac-exportar">Exportar PDF de ${anio}…</button>
     </div>
     <div class="stack" id="vac-body"></div>
   `;
@@ -31,24 +30,21 @@ window.Vistas.vacaciones = async function (container) {
     opciones: opcionesAnios, valorInicial: String(anio),
     onChange: (v) => {
       anio = parseInt(v, 10);
-      container.querySelector("#vac-exportar").textContent = `Exportar PDF de ${anio}`;
+      container.querySelector("#vac-exportar").textContent = `Exportar PDF de ${anio}…`;
       render();
     },
   });
 
-  const inJefe = document.createElement("input");
-  inJefe.className = "glass-input";
-  inJefe.value = "Dra. Claudia Elizabeth Vázquez Robledo";
-  container.querySelector("#vac-jefe").appendChild(inJefe);
-
-  container.querySelector("#vac-exportar").onclick = async () => {
-    if (!inJefe.value.trim()) { Api.mostrarToast("Ingresa el nombre del jefe inmediato.", "error"); return; }
-    try {
-      const r = await Api.llamar("exportar_vacaciones", anio, inJefe.value, true);
-      if (r.cancelado) return;
-      Api.mostrarToast(`PDF generado y abierto: ${r.ruta}`, "success");
-      render();
-    } catch (e) { /* toast ya mostrado */ }
+  // El botón de aquí ya no exporta "todo el año" a ciegas -- manda a la
+  // pestaña Exportar (con este año preseleccionado) para que el usuario
+  // elija ahí, periodo por periodo, cuáles entran al PDF. Necesario porque
+  // un periodo ordinario se puede fraccionar (p.ej. el primero dividido en
+  // dos tramos tomados en fechas distintas) y no siempre se quiere exportar
+  // el fragmento que ya se tomó junto con el que falta.
+  container.querySelector("#vac-exportar").onclick = () => {
+    window.Vistas.exportar.anioSugerido = anio;
+    const navExportar = document.querySelector('.nav-item[data-view="exportar"]');
+    if (navExportar) navExportar.click();
   };
 
   const body = container.querySelector("#vac-body");
