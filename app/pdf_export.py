@@ -455,9 +455,14 @@ def _dibujar_fila_dia_especial(c: pdfcanvas.Canvas, etiqueta: str, valor_texto: 
     elif valor_texto:
         c.setFont("Helvetica", 7.5)
         c.drawCentredString((dx0 + mx1) / 2, Y(y1_split - 5.2), valor_texto)
+    # La leyenda "Día"/"Mes" va DENTRO de la casilla, en la submitad que
+    # alto_caption le reserva debajo de la línea divisoria (y1_split) -- no
+    # afuera del recuadro (Y(y1 + ...) caía apenas 3.1pt bajo el borde
+    # inferior, tan pegado que la letra se veía atravesada por esa línea).
     c.setFont("Helvetica", 8)
-    c.drawCentredString((dx0 + dx1) / 2, Y(y1 + 3.1), "Día")
-    c.drawCentredString((mx0 + mx1) / 2, Y(y1 + 3.1), "Mes")
+    y_caption = y1_split + alto_caption / 2 + 3
+    c.drawCentredString((dx0 + dx1) / 2, Y(y_caption), "Día")
+    c.drawCentredString((mx0 + mx1) / 2, Y(y_caption), "Mes")
 
     c.rect(ax0, Y(y1), ax1 - ax0, y1 - y0_arriba, stroke=1, fill=0)
     aut = Paragraph("<br/>".join(lineas_autoriza), _estilo_celda)
