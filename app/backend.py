@@ -37,6 +37,27 @@ def _fail(mensaje: str):
     return {"ok": False, "error": mensaje, "data": None}
 
 
+def _generar_pdf_o_fail(generar, *args):
+    """Envuelve generar_pdf_pases()/generar_pdf_vacaciones(): la causa más
+    común de que reportlab falle al guardar el archivo es un PermissionError
+    de Windows porque el PDF de destino ya está abierto en otro programa
+    (p.ej. el visor donde se dejó abierta una exportación anterior con el
+    mismo nombre) -- no un bug real. Confirmado en un caso real vía
+    debug.log: 'PermissionError: [Errno 13] Permission denied' justo en
+    canvas.save(). Se distingue de un bug para devolver un mensaje que el
+    usuario sí puede resolver, en vez del genérico "ya quedó registrado para
+    revisión" (ese, correctamente, sigue siendo el mensaje para cualquier
+    OTRA excepción no prevista aquí)."""
+    try:
+        generar(*args)
+        return None
+    except OSError:
+        return _fail(
+            "No se pudo guardar el PDF: puede estar abierto en otro programa "
+            "(ciérralo e intenta de nuevo) o la carpeta no tiene permiso de escritura."
+        )
+
+
 def _reportar_si_falla(metodo):
     """Envuelve un método para que un bug real (excepción no prevista,
     distinta de los _fail() deliberados de validación) quede reportado a la
@@ -108,6 +129,34 @@ class Backend(QObject):
         if not updater.hay_actualizacion_lista():
             return _fail("No hay ninguna actualización lista para instalar todavía.")
         self.cierre_solicitado.emit()
+        return _ok()
+
+    def revisar_actualizaciones_ahora(self):
+        """Botón "Buscar actualizaciones": a diferencia de la revisión
+        automática de al abrir la app (silenciosa siempre, nunca avisa si no
+        hay nada nuevo), esta la pidió el usuario a propósito, así que sí
+        necesita alguna respuesta aunque no haya nada que instalar -- ver
+        MainWindow.revision_manual_sin_novedad. La revisión en sí sigue
+        corriendo en un hilo de fondo (nunca bloquea la ventana esperando la
+        red) y avisa por señal de Qt, igual que la automática."""
+        from app import updater
+        ya_lista = updater.hay_actualizacion_lista()
+        if ya_lista:
+            if self.ventana_padre:
+                self.ventana_padre.actualizacion_encontrada.emit(ya_lista["version"])
+            return _ok()
+
+        ventana = self.ventana_padre
+
+        def _si_hay(version):
+            if ventana:
+                ventana.actualizacion_encontrada.emit(version)
+
+        def _si_no_hay(motivo):
+            if ventana:
+                ventana.revision_manual_sin_novedad.emit(motivo or "")
+
+        updater.iniciar_revision_en_segundo_plano(al_terminar=_si_hay, al_terminar_sin_novedad=_si_no_hay)
         return _ok()
 
     # ---------------- Perfil ----------------
@@ -539,7 +588,11 @@ class Backend(QObject):
         if not ruta:
             return _ok({"cancelado": True})
 
-        generar_pdf_pases(perfil, particulares, oficiales, jefe_nombre.strip(), int(mes), int(anio), ruta)
+        error = _generar_pdf_o_fail(
+            generar_pdf_pases, perfil, particulares, oficiales, jefe_nombre.strip(), int(mes), int(anio), ruta,
+        )
+        if error:
+            return error
 
         hoy_iso = datetime.today().date().isoformat()
         for p in particulares:
@@ -600,7 +653,11 @@ class Backend(QObject):
         if not ruta:
             return _ok({"cancelado": True})
 
-        generar_pdf_vacaciones(perfil, periodos_por_tipo, dia_especial, jefe_nombre.strip(), anio, ruta)
+        error = _generar_pdf_o_fail(
+            generar_pdf_vacaciones, perfil, periodos_por_tipo, dia_especial, jefe_nombre.strip(), anio, ruta,
+        )
+        if error:
+            return error
 
         for f in filas:
             if not f["exportado"]:

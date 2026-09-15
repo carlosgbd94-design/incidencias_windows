@@ -121,14 +121,31 @@ def _sha256_de(ruta) -> str:
     return h.hexdigest()
 
 
-def _revisar_y_preparar(al_terminar=None) -> None:
+def _revisar_y_preparar(al_terminar=None, al_terminar_sin_novedad=None) -> None:
+    """`al_terminar_sin_novedad(motivo)` es opcional y aparte de `al_terminar`
+    -- la revisión automática de al abrir la app nunca lo pasa, porque a ese
+    chequeo silencioso no le interesa avisar cuando NO hay nada nuevo (ver el
+    docstring del módulo). Existe para el botón "Buscar actualizaciones"
+    (revisión manual): ahí sí hace falta poder decirle al usuario "ya estás
+    al día" o "no se pudo revisar" en vez de dejarlo esperando sin respuesta.
+    `motivo` es None si simplemente ya estaba al día, o un string corto
+    (ver las llamadas de abajo) para los demás casos sin actualización."""
     diag.log(f"updater: revisando actualizaciones (versión local instalada: {APP_VERSION})")
+
+    def _avisar_sin_novedad(motivo):
+        if al_terminar_sin_novedad:
+            try:
+                al_terminar_sin_novedad(motivo)
+            except Exception:
+                pass
+
     try:
         release = _pedir_json(API_LATEST)
         version_remota = release.get("tag_name", "")
         diag.log(f"updater: GitHub respondió, última versión publicada = {version_remota!r}")
         if _version_a_tupla(version_remota) <= _version_a_tupla(APP_VERSION):
             diag.log("updater: ya está al día, no hay nada más nuevo -> no hace nada")
+            _avisar_sin_novedad(None)
             return
 
         assets = {a["name"]: a["browser_download_url"] for a in release.get("assets", [])}
@@ -138,6 +155,7 @@ def _revisar_y_preparar(al_terminar=None) -> None:
                   f"(exe encontrado: {exe_nombre!r}, sha encontrado: {sha_nombre!r})")
         if not exe_nombre or not sha_nombre:
             diag.log("updater: faltan assets esperados en el release -> aborta, no arriesga instalar sin verificar")
+            _avisar_sin_novedad("faltan_assets")
             return
 
         carpeta = get_data_dir() / "actualizaciones"
@@ -157,6 +175,7 @@ def _revisar_y_preparar(al_terminar=None) -> None:
             diag.log(f"updater: CHECKSUM NO COINCIDE (esperado={esperado}, real={real}) -> descarta la descarga, no instala nada")
             ruta_exe.unlink(missing_ok=True)
             ruta_sha.unlink(missing_ok=True)
+            _avisar_sin_novedad("checksum")
             return  # descarga corrupta o manipulada: NUNCA instalar esto
 
         diag.log(f"updater: checksum OK. Actualización {version_remota} lista para instalarse al cerrar la app")
@@ -170,16 +189,22 @@ def _revisar_y_preparar(al_terminar=None) -> None:
                 pass
     except Exception as e:
         diag.log(f"updater: FALLÓ la revisión ({type(e).__name__}: {e}) -> se ignora, se reintentará la próxima apertura")
+        _avisar_sin_novedad("error")
         return
 
 
-def iniciar_revision_en_segundo_plano(al_terminar=None) -> None:
+def iniciar_revision_en_segundo_plano(al_terminar=None, al_terminar_sin_novedad=None) -> None:
     """Lanza la revisión en un hilo aparte para nunca demorar el arranque.
 
     `al_terminar(version)` (opcional) se invoca -desde ese mismo hilo de
     fondo- solo si se encontró, descargó y verificó una versión nueva.
+    `al_terminar_sin_novedad(motivo)` (opcional) se invoca -también desde ese
+    hilo- en cualquier otro desenlace (ver _revisar_y_preparar); la revisión
+    automática de al abrir la app no lo usa, solo la manual.
     """
-    threading.Thread(target=_revisar_y_preparar, args=(al_terminar,), daemon=True).start()
+    threading.Thread(
+        target=_revisar_y_preparar, args=(al_terminar, al_terminar_sin_novedad), daemon=True,
+    ).start()
 
 
 def hay_actualizacion_lista() -> dict | None:

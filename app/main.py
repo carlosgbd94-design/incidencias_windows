@@ -92,6 +92,12 @@ class MainWindow(QMainWindow):
     # Esta señal sí es segura -- Qt la encola sola al hilo correcto (el de
     # esta ventana) porque el emisor y el receptor están en hilos distintos.
     actualizacion_encontrada = Signal(str)
+    # Mismo motivo/mecanismo que actualizacion_encontrada, pero para el botón
+    # "Buscar actualizaciones" (revisión manual, ver Backend.
+    # revisar_actualizaciones_ahora()): se dispara cuando la revisión terminó
+    # SIN encontrar nada que instalar (str vacío = ya estaba al día; si no,
+    # un motivo corto para diagnóstico, ver updater._revisar_y_preparar).
+    revision_manual_sin_novedad = Signal(str)
 
     def __init__(self, backend: Backend):
         super().__init__()
@@ -130,6 +136,7 @@ class MainWindow(QMainWindow):
         self.pagina.setWebChannel(self._canal)
 
         self.actualizacion_encontrada.connect(self.mostrar_dialogo_actualizacion)
+        self.revision_manual_sin_novedad.connect(self.mostrar_resultado_revision_manual)
 
         backend.cierre_solicitado.connect(self.close)
 
@@ -143,6 +150,10 @@ class MainWindow(QMainWindow):
 
     def mostrar_dialogo_actualizacion(self, version: str):
         js = f"window.Api && Api.mostrarDialogoActualizacion({json.dumps(version)})"
+        self.pagina.runJavaScript(js)
+
+    def mostrar_resultado_revision_manual(self, motivo: str):
+        js = f"window.Api && Api.mostrarResultadoRevisionManual({json.dumps(motivo or None)})"
         self.pagina.runJavaScript(js)
 
     def mostrar_progreso_actualizacion(self, mensaje: str | None = None):

@@ -128,6 +128,15 @@
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
         <span id="update-badge-texto">Tienes la última versión</span>
       </div>
+      <!-- A diferencia del chip de arriba (pasivo, informativo), este SÍ es
+           un botón: la revisión automática solo pasa al abrir la app, así
+           que si alguien la deja abierta un buen rato no se entera de una
+           versión nueva hasta que cierra y vuelve a abrir -- esto le da una
+           forma de pedirla en el momento (ver Api.buscarActualizacionesAhora). -->
+      <button type="button" id="btn-buscar-actualizaciones" class="update-check-btn">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11A8 8 0 1 0 19 15"/><path d="M20 5v6h-6"/></svg>
+        <span id="btn-buscar-actualizaciones-texto">Buscar actualizaciones</span>
+      </button>
     </nav>
 
     <main class="content-area" id="content-area">

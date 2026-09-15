@@ -195,6 +195,10 @@ let _versionDialogoMostrado = null;
 // conectar el puente y otra si updater.py encuentra la actualización un poco
 // después) -- si ya se mostró para esta misma versión, no hace nada de nuevo.
 function mostrarDialogoActualizacion(version) {
+  // La revisión (automática o manual, ver buscarActualizacionesAhora) que
+  // encontró esta versión ya terminó -- si el botón estaba en "Buscando…",
+  // no debe quedarse así (el diálogo modal toma el relevo de aquí en más).
+  _terminarBusquedaManual();
   if (_versionDialogoMostrado === version) return;
   _versionDialogoMostrado = version;
 
@@ -244,6 +248,53 @@ function mostrarDialogoActualizacion(version) {
   });
 }
 
+// Botón "Buscar actualizaciones" (ver #btn-buscar-actualizaciones en
+// index.html): la revisión automática solo corre al abrir la app, así que
+// si alguien la deja abierta un rato largo, esto le da una forma de
+// pedirla en el momento sin tener que cerrar y volver a abrir.
+function _terminarBusquedaManual() {
+  const btn = document.getElementById("btn-buscar-actualizaciones");
+  const texto = document.getElementById("btn-buscar-actualizaciones-texto");
+  if (btn) { btn.disabled = false; btn.classList.remove("buscando"); }
+  if (texto) texto.textContent = "Buscar actualizaciones";
+}
+
+function buscarActualizacionesAhora() {
+  const btn = document.getElementById("btn-buscar-actualizaciones");
+  const texto = document.getElementById("btn-buscar-actualizaciones-texto");
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.classList.add("buscando");
+  if (texto) texto.textContent = "Buscando…";
+  // Si el usuario ya había descartado el diálogo de esta misma versión con
+  // "Después", una revisión pedida a propósito por él debe poder
+  // mostrárselo de nuevo -- no quedarse callada solo porque ya se le avisó
+  // una vez (eso sí aplica a la revisión automática, para no ser pesada).
+  _versionDialogoMostrado = null;
+  // Esta llamada solo confirma que la revisión ARRANCÓ (corre en un hilo de
+  // fondo del lado de Python) -- el resultado real llega después, aparte,
+  // vía mostrarDialogoActualizacion() (si encontró algo) o
+  // mostrarResultadoRevisionManual() (si no). Si ni siquiera pudo arrancar
+  // (puente caído, etc.), sí hay que reponer el botón aquí.
+  llamar("revisar_actualizaciones_ahora").catch(() => {
+    _terminarBusquedaManual();
+  });
+}
+
+// Respuesta al botón de arriba cuando la revisión terminó SIN encontrar
+// nada que instalar -- si sí encontró algo, en cambio, se avisa con el
+// diálogo modal de siempre (mostrarDialogoActualizacion), no con esto.
+function mostrarResultadoRevisionManual(motivo) {
+  _terminarBusquedaManual();
+  if (motivo === null || motivo === undefined) {
+    mostrarToast("Ya tienes la última versión instalada.", "success");
+  } else if (motivo === "error") {
+    mostrarToast("No se pudo revisar actualizaciones. Verifica tu conexión.", "error");
+  } else {
+    mostrarToast("No se pudo completar la revisión. Intenta más tarde.", "error");
+  }
+}
+
 function mostrarErrorVista(container, mensaje) {
   container.innerHTML = `
     <div class="glass-card" style="max-width:520px;">
@@ -258,7 +309,11 @@ window.Api = {
   llamar, mostrarToast, mostrarErrorVista,
   mostrarEstadoAlDia, mostrarDialogoActualizacion,
   mostrarProgresoActualizacion, ocultarProgresoActualizacion,
+  buscarActualizacionesAhora, mostrarResultadoRevisionManual,
 };
+
+document.getElementById("btn-buscar-actualizaciones")
+  ?.addEventListener("click", buscarActualizacionesAhora);
 
 /* ---- js/components/segmented.js ---- */
 /* Control segmentado estilo iOS: un "thumb" claro que se desliza exactamente
