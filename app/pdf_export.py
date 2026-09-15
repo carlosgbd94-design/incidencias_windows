@@ -585,8 +585,13 @@ def generar_pdf_vacaciones(perfil: dict, periodos_por_tipo: dict, dia_especial: 
     y_cursor += 21.8
 
     # Fila de casillas Cumpleaños/Santoral: posiciones X medidas del
-    # original (no van pegadas al margen izquierdo como antes).
-    tipo_dia = perfil.get("tipo_dia_especial") or ""
+    # original (no van pegadas al margen izquierdo como antes). La marca X y
+    # la fecha que corresponde solo se llenan si el usuario de verdad incluyó
+    # el día especial en esta exportación (dia_especial no es None) -- si no,
+    # quedan en blanco como el resto de las casillas no seleccionadas, para
+    # no verse como una solicitud activa cuando solo se exportaron periodos
+    # de vacaciones.
+    tipo_dia = (perfil.get("tipo_dia_especial") or "") if dia_especial else ""
     c.setFont("Helvetica", 10)
     c.drawString(168.7, Y(y_cursor + 9), "*Cumpleaños")
     c.rect(255.5, Y(y_cursor + 12.5), 21.1, 12.5, stroke=1, fill=0)
@@ -606,7 +611,7 @@ def generar_pdf_vacaciones(perfil: dict, periodos_por_tipo: dict, dia_especial: 
     # quedaba montado sobre "*Cumpleaños"/"*Santoral".
     y_cursor += 12.5 + 5.3
 
-    fecha_corresponde = perfil.get("fecha_dia_especial") or "-"
+    fecha_corresponde = (perfil.get("fecha_dia_especial") or "-") if dia_especial else ""
     if dia_especial and dia_especial.get("aplico"):
         fecha_solicita = fecha_es(dia_especial["fecha_otorgada"])
     elif dia_especial and not dia_especial.get("aplico"):
