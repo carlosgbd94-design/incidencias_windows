@@ -124,6 +124,12 @@ class MainWindow(QMainWindow):
         cache_dir = get_data_dir() / "webengine_cache"
         self._perfil.setCachePath(str(cache_dir))
         self._perfil.setPersistentStoragePath(str(cache_dir / "storage"))
+        # El caché HTTP persistente puede seguir sirviendo un bundle.js viejo
+        # después de actualizar la app (la UI vieja llamaría al backend nuevo
+        # con argumentos de menos, p.ej. exportar_vacaciones sin
+        # id_dia_especial). Los archivos son locales, así que no se pierde
+        # nada de velocidad al vaciarlo en cada arranque.
+        self._perfil.clearHttpCache()
 
         self.vista = QWebEngineView(self)
         self.pagina = QWebEnginePage(self._perfil, self.vista)

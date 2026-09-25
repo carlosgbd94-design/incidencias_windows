@@ -607,7 +607,7 @@ class Backend(QObject):
         abrir_pdf(ruta)
         return _ok({"ruta": ruta})
 
-    def exportar_vacaciones(self, anio, jefe_nombre, ids_periodos, id_dia_especial):
+    def exportar_vacaciones(self, anio, jefe_nombre, ids_periodos, id_dia_especial=None):
         """A diferencia de exportar_pases() (que exporta todo un rango de
         fechas), aquí el usuario elige a mano cuáles periodos entran al PDF
         (ids_periodos) y si incluye o no la solicitud de día especial
